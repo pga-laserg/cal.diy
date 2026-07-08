@@ -9,6 +9,15 @@ on:
       - gh-actions-test-branch
 
   workflow_dispatch:
+    inputs:
+      e2e_lane:
+        description: Choose the E2E lane to run
+        required: false
+        default: standard
+        type: choice
+        options:
+          - standard
+          - api-v2-cloud
 
 permissions:
   actions: write
@@ -161,7 +170,7 @@ jobs:
   prepare:
     name: Prepare
     needs: [trust-check]
-    if: needs.trust-check.outputs.is-trusted == 'true'
+    if: ${{ needs.trust-check.outputs.is-trusted == 'true' && (github.event_name != 'workflow_dispatch' || inputs.e2e_lane != 'api-v2-cloud') }}
     runs-on: ubuntu-latest
     permissions:
       pull-requests: read
@@ -386,6 +395,13 @@ jobs:
     uses: ./.github/workflows/e2e-api-v2.yml
     secrets: inherit
 
+  e2e-api-v2-cloud:
+    name: Tests
+    needs: [trust-check]
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.e2e_lane == 'api-v2-cloud' }}
+    uses: ./.github/workflows/e2e-api-v2-cloud.yml
+    secrets: inherit
+
   e2e-app-store:
     name: Tests
     needs: [prepare, build, setup-db]
@@ -435,7 +451,7 @@ jobs:
         e2e-embed-react,
         e2e-app-store,
       ]
-    if: always()
+    if: ${{ always() && (github.event_name != 'workflow_dispatch' || inputs.e2e_lane != 'api-v2-cloud') }}
     runs-on: ubuntu-latest
     steps:
       - name: Fail if trust-check did not succeed
