@@ -25,6 +25,10 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/cron/booking-effects",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/selected-calendars",
       "schedule": "*/5 * * * *"
     }

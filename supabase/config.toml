@@ -1,0 +1,42 @@
+# Cloud-only Supabase policy for the Cal.diy vNext port:
+# - Keep this file so the Supabase CLI can resolve project metadata and migrations.
+# - Do not use local Supabase Docker workflows (`supabase start`, `supabase db reset`, or local seeds).
+# - Apply schema only to the linked Supabase Cloud project.
+
+project_id = "agenda-cl"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[api.tls]
+enabled = false
+
+[db]
+port = 54322
+shadow_port = 54320
+health_timeout = "2m"
+major_version = 17
+
+[db.pooler]
+enabled = false
+port = 54329
+pool_mode = "transaction"
+default_pool_size = 20
+max_client_conn = 100
+
+[db.migrations]
+enabled = true
+schema_paths = []
+
+[db.seed]
+enabled = false
+sql_paths = []
+
+[db.network_restrictions]
+enabled = false
+allowed_cidrs = ["0.0.0.0/0"]
+allowed_cidrs_v6 = ["::/0"]
