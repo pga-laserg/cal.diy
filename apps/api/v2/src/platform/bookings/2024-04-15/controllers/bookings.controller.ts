@@ -29,6 +29,8 @@ import {
   ForbiddenException,
   Get,
   Headers,
+  HttpCode,
+  HttpStatus,
   HttpException,
   InternalServerErrorException,
   Logger,
@@ -310,6 +312,7 @@ export class BookingsController_2024_04_15 {
   }
 
   @Post("/:bookingUid/mark-absent")
+  @HttpCode(HttpStatus.OK)
   @Permissions([BOOKING_WRITE])
   @UseGuards(ApiAuthGuard)
   async markAbsent(
