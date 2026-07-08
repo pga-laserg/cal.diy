@@ -1,4 +1,4 @@
-import { CalendarsService } from "@/ee/calendars/services/calendars.service";
+import { CalendarsService } from "@/platform/calendars/services/calendars.service";
 
 import { ICS_CALENDAR_ID, ICS_CALENDAR_TYPE } from "@calcom/platform-constants";
 

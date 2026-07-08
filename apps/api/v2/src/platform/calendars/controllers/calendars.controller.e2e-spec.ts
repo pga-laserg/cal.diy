@@ -21,7 +21,7 @@ import {
   SUCCESS_STATUS,
 } from "@calcom/platform-constants";
 import { ICS_CALENDAR, ICS_CALENDAR_TYPE } from "@calcom/platform-constants/apps";
-import type { Credential, PlatformOAuthClient, Team, User } from "@calcom/prisma/client";
+import type { App, Credential, PlatformOAuthClient, Prisma, Team, User } from "@calcom/prisma/client";
 
 // Mock the BuildIcsFeedCalendarService factory function
 const mockBuildIcsFeedCalendarService = jest.fn();
@@ -42,6 +42,7 @@ import { CalendarsService } from "@/platform/calendars/services/calendars.servic
 import { HttpExceptionFilter } from "@/filters/http-exception.filter";
 import { PrismaExceptionFilter } from "@/filters/prisma-exception.filter";
 import { PermissionsGuard } from "@/modules/auth/guards/permissions/permissions.guard";
+import { PrismaWriteService } from "@/modules/prisma/prisma-write.service";
 import { TokensModule } from "@/modules/tokens/tokens.module";
 import { UsersModule } from "@/modules/users/users.module";
 
@@ -66,6 +67,8 @@ describeCalendars("Platform Calendars Endpoints", () => {
   let accessTokenSecret: string;
   let refreshTokenSecret: string;
   let icsCalendarCredentials: CreateIcsFeedOutput;
+  let prismaWriteService: PrismaWriteService;
+  let previousGoogleCalendarApp: Pick<App, "enabled" | "keys"> | null;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -87,6 +90,18 @@ describeCalendars("Platform Calendars Endpoints", () => {
     teamRepositoryFixture = new TeamRepositoryFixture(moduleRef);
     tokensRepositoryFixture = new TokensRepositoryFixture(moduleRef);
     credentialsRepositoryFixture = new CredentialsRepositoryFixture(moduleRef);
+    prismaWriteService = moduleRef.get(PrismaWriteService);
+    previousGoogleCalendarApp = await prismaWriteService.prisma.app.findUnique({
+      where: { slug: "google-calendar" },
+      select: { enabled: true, keys: true },
+    });
+    await prismaWriteService.prisma.app.update({
+      where: { slug: "google-calendar" },
+      data: {
+        enabled: true,
+        keys: getGoogleCalendarAppKeys(),
+      },
+    });
     organization = await teamRepositoryFixture.create({ name: `calendars-organization-${randomString()}` });
     oAuthClient = await createOAuthClient(organization.id);
     user = await userRepositoryFixture.createOAuthManagedUser(
@@ -113,6 +128,17 @@ describeCalendars("Platform Calendars Endpoints", () => {
 
     const client = await oauthClientRepositoryFixture.create(organizationId, data, secret);
     return client;
+  }
+
+  function getGoogleCalendarAppKeys() {
+    // biome-ignore lint/style/noProcessEnv: This e2e spec runs only when the Google OAuth fixture secret is present.
+    const credentials = JSON.parse(process.env.GOOGLE_API_CREDENTIALS || "{}");
+    const keys = credentials.web ?? credentials;
+    return {
+      client_id: keys.client_id,
+      client_secret: keys.client_secret,
+      redirect_uris: keys.redirect_uris,
+    };
   }
 
   it("should be defined", () => {
@@ -385,12 +411,25 @@ describeCalendars("Platform Calendars Endpoints", () => {
   });
 
   afterAll(async () => {
-    await oauthClientRepositoryFixture.delete(oAuthClient.id);
-    await teamRepositoryFixture.delete(organization.id);
-    await credentialsRepositoryFixture.delete(office365Credentials.id);
-    await credentialsRepositoryFixture.delete(googleCalendarCredentials.id);
-    await credentialsRepositoryFixture.delete(icsCalendarCredentials.id);
-    await userRepositoryFixture.deleteByEmail(user.email);
-    await app.close();
+    await Promise.allSettled([
+      oAuthClient ? oauthClientRepositoryFixture.delete(oAuthClient.id) : Promise.resolve(),
+      organization ? teamRepositoryFixture.delete(organization.id) : Promise.resolve(),
+      office365Credentials ? credentialsRepositoryFixture.delete(office365Credentials.id) : Promise.resolve(),
+      googleCalendarCredentials
+        ? credentialsRepositoryFixture.delete(googleCalendarCredentials.id)
+        : Promise.resolve(),
+      icsCalendarCredentials ? credentialsRepositoryFixture.delete(icsCalendarCredentials.id) : Promise.resolve(),
+      user ? userRepositoryFixture.deleteByEmail(user.email) : Promise.resolve(),
+      previousGoogleCalendarApp
+        ? prismaWriteService.prisma.app.update({
+            where: { slug: "google-calendar" },
+            data: {
+              enabled: previousGoogleCalendarApp.enabled,
+              keys: previousGoogleCalendarApp.keys as Prisma.InputJsonValue,
+            },
+          })
+        : Promise.resolve(),
+    ]);
+    await app?.close();
   });
 });
