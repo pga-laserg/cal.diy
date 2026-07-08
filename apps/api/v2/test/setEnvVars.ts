@@ -38,7 +38,7 @@ process.env = {
   VAPID_PRIVATE_KEY: "6cJtkASCar5sZWguIAW7OjvyixpBw9p8zL8WDDwk9Jk",
   CALENDSO_ENCRYPTION_KEY: "22gfxhWUlcKliUeXcu8xNah2+HP/29ZX",
   CALCOM_SERVICE_ACCOUNT_ENCRYPTION_KEY: "ae1ca912d1ff09f1527dae78e84f88b4",
-  DATABASE_DIRECT_URL: "postgresql://postgres:@localhost:5450/calendso",
+  DATABASE_DIRECT_URL: process.env.DATABASE_DIRECT_URL || "postgresql://postgres:@localhost:5450/calendso",
   INTEGRATION_TEST_MODE: "true",
   e2e: "true",
   SLOTS_CACHE_TTL: "1",

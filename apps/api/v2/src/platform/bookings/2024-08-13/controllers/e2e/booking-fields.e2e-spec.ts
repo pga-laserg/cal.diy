@@ -860,6 +860,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
           timeZone: "Europe/Madrid",
           language: "en",
         },
+        location: "https://meet.google.com/abc-def-ghi",
       };
 
       it("should reject with 400 if 'test-phone' (phone) is not a string", async () => {

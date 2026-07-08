@@ -2043,6 +2043,8 @@ describe("Bookings Endpoints 2024-08-13", () => {
       const address = "123 Main St";
       const link = "https://cal.com/join/123456";
       const phone = "+37121999999";
+      const runExternalCalVideoE2E = process.env.RUN_EXTERNAL_CAL_VIDEO_E2E === "true";
+      const locationStart = (day: number) => new Date(Date.UTC(2040, 0, day, 13, 0, 0)).toISOString();
 
       let eventTypeWithAllLocationsId: number;
       it("can create event type with all locations except google meet", async () => {
@@ -2095,9 +2097,9 @@ describe("Bookings Endpoints 2024-08-13", () => {
         eventTypeWithAllLocationsId = createdEventType.id;
       });
 
-      it("can book with cal video location", async () => {
+      (runExternalCalVideoE2E ? it : it.skip)("can book with cal video location", async () => {
         const bookingBody: CreateBookingInput_2024_08_13 = {
-          start: new Date(Date.UTC(2040, 0, 9, 13, 0, 0)).toISOString(),
+          start: locationStart(9),
           eventTypeId: eventTypeWithAllLocationsId,
           attendee: {
             name: "Mr Proper",
@@ -2133,7 +2135,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
 
       it("can book with address location", async () => {
         const bookingBody: CreateBookingInput_2024_08_13 = {
-          start: new Date(Date.UTC(2040, 0, 9, 13, 0, 0)).toISOString(),
+          start: locationStart(10),
           eventTypeId: eventTypeWithAllLocationsId,
           attendee: {
             name: "Mr Proper",
@@ -2166,7 +2168,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
 
       it("can book with link location", async () => {
         const bookingBody: CreateBookingInput_2024_08_13 = {
-          start: new Date(Date.UTC(2040, 0, 9, 13, 0, 0)).toISOString(),
+          start: locationStart(11),
           eventTypeId: eventTypeWithAllLocationsId,
           attendee: {
             name: "Mr Proper",
@@ -2199,7 +2201,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
 
       it("can book with link location", async () => {
         const bookingBody: CreateBookingInput_2024_08_13 = {
-          start: new Date(Date.UTC(2040, 0, 9, 13, 0, 0)).toISOString(),
+          start: locationStart(12),
           eventTypeId: eventTypeWithAllLocationsId,
           attendee: {
             name: "Mr Proper",
@@ -2234,7 +2236,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
         const attendeeAddress = "123 Example St, City, Valhalla";
 
         const bookingBody: CreateBookingInput_2024_08_13 = {
-          start: new Date(Date.UTC(2040, 0, 9, 13, 0, 0)).toISOString(),
+          start: locationStart(13),
           eventTypeId: eventTypeWithAllLocationsId,
           attendee: {
             name: "Mr Proper",
@@ -2270,7 +2272,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
         const attendeePhone = "+37120993151";
 
         const bookingBody: CreateBookingInput_2024_08_13 = {
-          start: new Date(Date.UTC(2040, 0, 9, 13, 0, 0)).toISOString(),
+          start: locationStart(14),
           eventTypeId: eventTypeWithAllLocationsId,
           attendee: {
             name: "Mr Proper",
@@ -2306,7 +2308,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
         const attendeeDefinedLocation = "namek 100";
 
         const bookingBody: CreateBookingInput_2024_08_13 = {
-          start: new Date(Date.UTC(2040, 0, 9, 13, 0, 0)).toISOString(),
+          start: locationStart(16),
           eventTypeId: eventTypeWithAllLocationsId,
           attendee: {
             name: "Mr Proper",
@@ -2340,7 +2342,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
 
       it("can't book with not location that is not in event type", async () => {
         const bookingBody: CreateBookingInput_2024_08_13 = {
-          start: new Date(Date.UTC(2040, 0, 9, 13, 0, 0)).toISOString(),
+          start: locationStart(17),
           eventTypeId: eventTypeWithAllLocationsId,
           attendee: {
             name: "Mr Proper",
@@ -2363,7 +2365,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
 
       it("can't book with invalid location type", async () => {
         const bookingBody = {
-          start: new Date(Date.UTC(2040, 0, 9, 13, 0, 0)).toISOString(),
+          start: locationStart(18),
           eventTypeId: eventTypeWithAllLocationsId,
           attendee: {
             name: "Mr Proper",

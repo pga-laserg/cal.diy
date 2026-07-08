@@ -279,6 +279,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
             timeZone: "Europe/Rome",
             language: "it",
           },
+          location: "https://meet.google.com/abc-def-ghi",
         };
 
         return request(app.getHttpServer())
