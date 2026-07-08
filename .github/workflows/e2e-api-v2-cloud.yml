@@ -3,7 +3,7 @@ on:
   workflow_call:
   workflow_dispatch:
 env:
-  ALLOWED_HOSTNAMES: ${{ vars.CI_ALLOWED_HOSTNAMES }}
+  ALLOWED_HOSTNAMES: "${{ vars.CI_ALLOWED_HOSTNAMES }},\"http://localhost:5555\""
   API_KEY_PREFIX: ${{ secrets.CI_API_KEY_PREFIX }}
   API_PORT: ${{ vars.CI_API_V2_PORT }}
   CALCOM_LICENSE_KEY: ${{ secrets.CI_CALCOM_LICENSE_KEY }}
