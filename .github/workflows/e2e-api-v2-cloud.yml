@@ -70,8 +70,7 @@ jobs:
       - name: Run Tests
         working-directory: apps/api/v2
         run: |
-          NODE_OPTIONS='--max_old_space_size=8192 --experimental-vm-modules' \
-            jest --ci --forceExit --config ./jest-e2e.ts --runInBand
+          yarn test:e2e:ci --runInBand
       - name: Upload Test Results
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
