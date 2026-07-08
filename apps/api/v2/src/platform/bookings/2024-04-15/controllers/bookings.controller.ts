@@ -12,7 +12,6 @@ import {
   getBookingForReschedule,
   getBookingInfo,
   handleCancelBooking,
-  handleMarkNoShow,
 } from "@calcom/platform-libraries";
 import { makeUserActor } from "@calcom/platform-libraries/bookings";
 import { ErrorCode, HttpError } from "@calcom/platform-libraries/errors";
@@ -48,6 +47,7 @@ import { NextApiRequest } from "next/types";
 import { v4 as uuidv4 } from "uuid";
 import { CreateBookingInput_2024_04_15 } from "@/platform/bookings/2024-04-15/inputs/create-booking.input";
 import { CreateRecurringBookingInput_2024_04_15 } from "@/platform/bookings/2024-04-15/inputs/create-recurring-booking.input";
+import { markNoShowForBooking_2024_04_15 } from "@/platform/bookings/2024-04-15/controllers/mark-no-show.adapter";
 import { MarkNoShowInput_2024_04_15 } from "@/platform/bookings/2024-04-15/inputs/mark-no-show.input";
 import { GetBookingOutput_2024_04_15 } from "@/platform/bookings/2024-04-15/outputs/get-booking.output";
 import { GetBookingsOutput_2024_04_15 } from "@/platform/bookings/2024-04-15/outputs/get-bookings.output";
@@ -296,10 +296,31 @@ export class BookingsController_2024_04_15 {
     @Param("bookingUid") bookingUid: string
   ): Promise<MarkNoShowOutput_2024_04_15> {
     try {
-      const markNoShowResponse = await handleMarkNoShow({
-        bookingUid: bookingUid,
-        attendees: body.attendees,
-        noShowHost: body.noShowHost,
+      const markNoShowResponse = await markNoShowForBooking_2024_04_15({
+        bookingUid,
+        body,
+        userId: user.id,
+      });
+
+      return { status: SUCCESS_STATUS, data: markNoShowResponse };
+    } catch (err) {
+      this.handleBookingErrors(err, "no-show");
+    }
+    throw new InternalServerErrorException("Could not mark no show.");
+  }
+
+  @Post("/:bookingUid/mark-absent")
+  @Permissions([BOOKING_WRITE])
+  @UseGuards(ApiAuthGuard)
+  async markAbsent(
+    @GetUser() user: UserWithProfile,
+    @Body() body: MarkNoShowInput_2024_04_15,
+    @Param("bookingUid") bookingUid: string
+  ): Promise<MarkNoShowOutput_2024_04_15> {
+    try {
+      const markNoShowResponse = await markNoShowForBooking_2024_04_15({
+        bookingUid,
+        body,
         userId: user.id,
       });
 

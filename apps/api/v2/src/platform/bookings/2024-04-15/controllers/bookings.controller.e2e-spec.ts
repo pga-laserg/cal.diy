@@ -6,6 +6,7 @@ import type { User } from "@calcom/prisma/client";
 import { INestApplication } from "@nestjs/common";
 import { NestExpressApplication } from "@nestjs/platform-express";
 import { Test } from "@nestjs/testing";
+import { advanceTo, clear } from "jest-date-mock";
 import request from "supertest";
 import { ApiKeysRepositoryFixture } from "test/fixtures/repository/api-keys.repository.fixture";
 import { BookingsRepositoryFixture } from "test/fixtures/repository/bookings.repository.fixture";
@@ -17,8 +18,10 @@ import { AppModule } from "@/app.module";
 import { bootstrap } from "@/bootstrap";
 import { CreateBookingInput_2024_04_15 } from "@/platform/bookings/2024-04-15/inputs/create-booking.input";
 import { CreateRecurringBookingInput_2024_04_15 } from "@/platform/bookings/2024-04-15/inputs/create-recurring-booking.input";
+import { MarkNoShowInput_2024_04_15 } from "@/platform/bookings/2024-04-15/inputs/mark-no-show.input";
 import { GetBookingOutput_2024_04_15 } from "@/platform/bookings/2024-04-15/outputs/get-booking.output";
 import { GetBookingsOutput_2024_04_15 } from "@/platform/bookings/2024-04-15/outputs/get-bookings.output";
+import { MarkNoShowOutput_2024_04_15 } from "@/platform/bookings/2024-04-15/outputs/mark-no-show.output";
 import { CreateScheduleInput_2024_04_15 } from "@/platform/schedules/schedules_2024_04_15/inputs/create-schedule.input";
 import { SchedulesModule_2024_04_15 } from "@/platform/schedules/schedules_2024_04_15/schedules.module";
 import { SchedulesService_2024_04_15 } from "@/platform/schedules/schedules_2024_04_15/services/schedules.service";
@@ -315,6 +318,34 @@ describe("Bookings Endpoints 2024-04-15", () => {
             expect(responseBody.data.responses).toEqual(bookingResponses);
 
             createdBooking = responseBody.data;
+          });
+      });
+    });
+
+    describe("mark absent compatibility", () => {
+      beforeAll(() => {
+        advanceTo(new Date(2040, 4, 21, 14, 0, 0));
+      });
+
+      afterAll(() => {
+        clear();
+      });
+
+      it("should mark a booking absent through the companion-facing route", async () => {
+        const body: MarkNoShowInput_2024_04_15 = {
+          noShowHost: true,
+        };
+
+        return request(app.getHttpServer())
+          .post(`/v2/bookings/${createdBooking.uid}/mark-absent`)
+          .send(body)
+          .expect(200)
+          .then(async (response) => {
+            const responseBody: MarkNoShowOutput_2024_04_15 = response.body;
+            expect(responseBody.status).toEqual(SUCCESS_STATUS);
+            expect(responseBody.data).toBeDefined();
+            expect(responseBody.data.noShowHost).toEqual(true);
+            expect(responseBody.data.message).toEqual("Booking no-show updated");
           });
       });
     });

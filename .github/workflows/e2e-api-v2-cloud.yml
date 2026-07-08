@@ -1,0 +1,83 @@
+name: Check breaking changes and run E2E API v2 Cloud
+on:
+  workflow_dispatch:
+env:
+  ALLOWED_HOSTNAMES: ${{ vars.CI_ALLOWED_HOSTNAMES }}
+  API_KEY_PREFIX: ${{ secrets.CI_API_KEY_PREFIX }}
+  API_PORT: ${{ vars.CI_API_V2_PORT }}
+  CALCOM_LICENSE_KEY: ${{ secrets.CI_CALCOM_LICENSE_KEY }}
+  DAILY_API_KEY: ${{ secrets.CI_DAILY_API_KEY }}
+  DATABASE_URL: ${{ secrets.CI_DATABASE_URL }}
+  DATABASE_READ_URL: ${{ secrets.CI_DATABASE_URL }}
+  DATABASE_WRITE_URL: ${{ secrets.CI_DATABASE_URL }}
+  DATABASE_DIRECT_URL: ${{ secrets.CI_DATABASE_URL }}
+  GOOGLE_API_CREDENTIALS: ${{ secrets.CI_GOOGLE_API_CREDENTIALS }}
+  IS_E2E: true
+  NEXTAUTH_SECRET: ${{ secrets.CI_NEXTAUTH_SECRET }}
+  NEXTAUTH_URL: ${{ secrets.CI_NEXTAUTH_URL }}
+  NODE_OPTIONS: --max-old-space-size=29000
+  REDIS_URL: "redis://localhost:6379"
+  LINGO_DOT_DEV_API_KEY: ${{ secrets.CI_LINGO_DOT_DEV_API_KEY }}
+  STRIPE_PRIVATE_KEY: ${{ secrets.CI_STRIPE_PRIVATE_KEY }}
+  STRIPE_API_KEY: ${{ secrets.CI_STRIPE_PRIVATE_KEY }}
+  STRIPE_CLIENT_ID: ${{ secrets.CI_STRIPE_CLIENT_ID }}
+  STRIPE_WEBHOOK_SECRET: ${{ secrets.CI_STRIPE_WEBHOOK_SECRET }}
+  SLOTS_CACHE_TTL: ${{ secrets.CI_SLOTS_CACHE_TTL }}
+  NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${{ secrets.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}
+  VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+  JWT_SECRET: ${{ secrets.CI_JWT_SECRET }}
+  NODE_ENV: ${{ vars.CI_NODE_ENV }}
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+jobs:
+  e2e:
+    timeout-minutes: 45
+    name: E2E API v2 Cloud
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:latest
+        credentials:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github
+      - uses: ./.github/actions/cache-checkout
+      - uses: ./.github/actions/yarn-install
+      - name: Generate Prisma client
+        run: yarn prisma generate
+      - name: Deploy database schema
+        run: yarn workspace @calcom/prisma db-deploy
+      - name: Seed database
+        run: yarn db-seed
+      - name: Build platform packages with Turbo
+        run: |
+          yarn turbo run build \
+            --filter=@calcom/platform-constants \
+            --filter=@calcom/platform-enums \
+            --filter=@calcom/platform-utils \
+            --filter=@calcom/platform-types \
+            --filter=@calcom/platform-libraries \
+            --filter=@calcom/trpc
+      - name: Run Tests
+        working-directory: apps/api/v2
+        run: |
+          NODE_OPTIONS='--max_old_space_size=8192 --experimental-vm-modules' \
+            jest --ci --forceExit --config ./jest-e2e.ts --runInBand
+      - name: Upload Test Results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-api-v2-cloud
+          path: apps/api/v2/test-results
+          if-no-files-found: ignore
+          retention-days: 7
