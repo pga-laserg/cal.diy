@@ -65,7 +65,7 @@ describe("Me Endpoints", () => {
       });
 
       await profilesRepositoryFixture.create({
-        uid: "asd-asd",
+        uid: `profile-${randomString()}`,
         username: userEmail,
         user: { connect: { id: user.id } },
         organization: { connect: { id: org.id } },

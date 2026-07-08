@@ -99,7 +99,7 @@ describe("OAuthFlow Endpoints", () => {
         name: `oauth-flow-organization-${randomString()}`,
       });
       await profilesRepositoryFixture.create({
-        uid: "asd-asd",
+        uid: `profile-${randomString()}`,
         username: userEmail,
         user: { connect: { id: user.id } },
         movedFromUser: { connect: { id: user.id } },

@@ -150,7 +150,7 @@ describe("OAuth client WebhooksController (e2e)", () => {
     oAuthClient = await oAuthClientRepositoryFixture.create(org.id, data, secret);
     otherOAuthClient = await oAuthClientRepositoryFixture.create(otherOrg.id, data, secret);
     otherOAuthClientWebhook = await webhookRepositoryFixture.create({
-      id: "123abc-123abc-123abc-123abc",
+      id: `webhook-${randomString()}`,
       active: true,
       payloadTemplate: "string",
       subscriberUrl: "https://example.com",

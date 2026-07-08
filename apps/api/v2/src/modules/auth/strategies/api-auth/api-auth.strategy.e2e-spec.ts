@@ -114,14 +114,14 @@ describe("ApiAuthStrategy", () => {
     });
 
     await profilesRepositoryFixture.create({
-      uid: "asd-asd",
+      uid: `profile-${randomString()}`,
       username: validOAuthEmail,
       user: { connect: { id: validOAuthUser.id } },
       organization: { connect: { id: organization.id } },
     });
 
     await profilesRepositoryFixture.create({
-      uid: "asd-asd",
+      uid: `profile-${randomString()}`,
       username: validOAuthEmail,
       user: { connect: { id: validOAuthUser.id } },
       organization: { connect: { id: organizationTwo.id } },
