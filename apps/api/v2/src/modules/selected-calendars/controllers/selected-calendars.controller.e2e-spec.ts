@@ -10,6 +10,7 @@ import { TeamRepositoryFixture } from "test/fixtures/repository/team.repository.
 import { TokensRepositoryFixture } from "test/fixtures/repository/tokens.repository.fixture";
 import { UserRepositoryFixture } from "test/fixtures/repository/users.repository.fixture";
 import { CalendarsServiceMock } from "test/mocks/calendars-service-mock";
+import { randomString } from "test/utils/randomString";
 import { AppModule } from "@/app.module";
 import { bootstrap } from "@/bootstrap";
 import { CalendarsService } from "@/platform/calendars/services/calendars.service";
@@ -57,9 +58,14 @@ describe("Platform Selected Calendars Endpoints", () => {
     teamRepositoryFixture = new TeamRepositoryFixture(moduleRef);
     tokensRepositoryFixture = new TokensRepositoryFixture(moduleRef);
     credentialsRepositoryFixture = new CredentialsRepositoryFixture(moduleRef);
-    organization = await teamRepositoryFixture.create({ name: "organization" });
+    organization = await teamRepositoryFixture.create({
+      name: `selected-calendars-organization-${randomString()}`,
+    });
     oAuthClient = await createOAuthClient(organization.id);
-    user = await userRepositoryFixture.createOAuthManagedUser("office365-connect@gmail.com", oAuthClient.id);
+    user = await userRepositoryFixture.createOAuthManagedUser(
+      `selected-calendars-user-${randomString()}@api.com`,
+      oAuthClient.id
+    );
     const tokens = await tokensRepositoryFixture.createTokens(user.id, oAuthClient.id);
     accessTokenSecret = tokens.accessToken;
     refreshTokenSecret = tokens.refreshToken;
@@ -146,9 +152,12 @@ describe("Platform Selected Calendars Endpoints", () => {
   });
 
   afterAll(async () => {
-    await oauthClientRepositoryFixture.delete(oAuthClient.id);
-    await teamRepositoryFixture.delete(organization.id);
-    await userRepositoryFixture.deleteByEmail(user.email);
-    await app.close();
+    await Promise.allSettled([
+      oAuthClient ? oauthClientRepositoryFixture.delete(oAuthClient.id) : Promise.resolve(),
+      organization ? teamRepositoryFixture.delete(organization.id) : Promise.resolve(),
+      appleCalendarCredentials ? credentialsRepositoryFixture.delete(appleCalendarCredentials.id) : Promise.resolve(),
+      user ? userRepositoryFixture.deleteByEmail(user.email) : Promise.resolve(),
+    ]);
+    await app?.close();
   });
 });
