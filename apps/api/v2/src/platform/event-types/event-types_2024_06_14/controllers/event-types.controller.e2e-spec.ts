@@ -2108,9 +2108,9 @@ describe("Event types Endpoints", () => {
     let teamRepositoryFixture: TeamRepositoryFixture;
     let eventTypesRepositoryFixture: EventTypesRepositoryFixture;
 
-    const userEmail = "legacy-event-types-test-e2e@api.com";
+    const userEmail = `legacy-event-types-test-e2e-${randomString()}@api.com`;
     const name = "bob-the-builder";
-    const username = name;
+    const username = `${name}-${randomString()}`;
     let user: User;
     let legacyEventTypeId1: number;
     let legacyEventTypeId2: number;
@@ -2892,9 +2892,9 @@ describe("Event types Endpoints", () => {
     let teamRepositoryFixture: TeamRepositoryFixture;
     let eventTypesRepositoryFixture: EventTypesRepositoryFixture;
 
-    const userEmail = "locations-event-types-test-e2e@api.com";
+    const userEmail = `locations-event-types-test-e2e-${randomString()}@api.com`;
     const name = "bob-the-locations-builder";
-    const username = name;
+    const username = `${name}-${randomString()}`;
     let user: User;
     let legacyEventTypeId1: number;
 
