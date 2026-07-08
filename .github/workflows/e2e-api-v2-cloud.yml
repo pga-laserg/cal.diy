@@ -1,5 +1,6 @@
 name: Check breaking changes and run E2E API v2 Cloud
 on:
+  workflow_call:
   workflow_dispatch:
 env:
   ALLOWED_HOSTNAMES: ${{ vars.CI_ALLOWED_HOSTNAMES }}
