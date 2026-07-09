@@ -50,6 +50,8 @@ import { SchedulesService_2024_04_15 } from "@/platform/schedules/schedules_2024
 
 jest.setTimeout(60 * 1000);
 
+const uniqueAttendeeEmail = (label: string): string => `ub-${label}-${randomString(8)}@gmail.com`;
+
 describe("Bookings Endpoints 2024-08-13", () => {
   describe("User bookings", () => {
     let app: INestApplication;
@@ -221,7 +223,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
             eventTypeId,
             attendee: {
               name: "Mr Proper",
-              email: "mr_proper@gmail.com",
+              email: uniqueAttendeeEmail("mr-proper"),
               timeZone: "Europe/Rome",
               language: "it",
             },
@@ -297,7 +299,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
             eventTypeId,
             attendee: {
               name: "Mr Proper",
-              email: "mr_proper@gmail.com",
+              email: uniqueAttendeeEmail("mr-proper"),
               timeZone: "Europe/Rome",
               language: "it",
             },
@@ -323,7 +325,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
             eventTypeId,
             attendee: {
               name: "Mr Proper",
-              email: "mr_proper@gmail.com",
+              email: uniqueAttendeeEmail("mr-proper"),
               timeZone: "Europe/Rome",
               language: "it",
             },
@@ -351,7 +353,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
           eventTypeId,
           attendee: {
             name: "Mr Proper",
-            email: "mr_proper@gmail.com",
+            email: uniqueAttendeeEmail("mr-proper"),
             timeZone: "Europe/Rome",
             language: "it",
           },
@@ -446,7 +448,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
           eventTypeId: recurringEventTypeId,
           attendee: {
             name: "Mr Proper Recurring",
-            email: "mr_proper_recurring@gmail.com",
+            email: uniqueAttendeeEmail("mr-proper-recurring"),
             timeZone: "Europe/Rome",
             language: "it",
           },
@@ -899,7 +901,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
 
       it("should get bookings by attendee email", async () => {
         return request(app.getHttpServer())
-          .get(`/v2/bookings?attendeeEmail=mr_proper@gmail.com`)
+          .get(`/v2/bookings?attendeeEmail=${createdBooking.attendees[0].email}`)
           .set(CAL_API_VERSION_HEADER, VERSION_2024_08_13)
           .expect(200)
           .then(async (response) => {
@@ -1540,7 +1542,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
 
       it("should mark attendee absent", async () => {
         const body: MarkAbsentBookingInput_2024_08_13 = {
-          attendees: [{ email: "mr_proper_recurring@gmail.com", absent: true }],
+          attendees: [{ email: createdRecurringBooking[2].attendees[0].email, absent: true }],
         };
 
         return request(app.getHttpServer())
@@ -1585,7 +1587,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
           eventTypeId,
           attendee: {
             name: "Mr Proper Cancel",
-            email: "mr_proper_cancel@gmail.com",
+            email: uniqueAttendeeEmail("mr-proper-cancel"),
             timeZone: "Europe/Rome",
             language: "it",
           },
@@ -1662,7 +1664,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
           eventTypeId: recurringEventTypeId,
           attendee: {
             name: "Mr Proper Recurring Cancel",
-            email: "mr_proper_recurring_cancel@gmail.com",
+            email: uniqueAttendeeEmail("mr-proper-recurring-cancel"),
             timeZone: "Europe/Rome",
             language: "it",
           },
@@ -1918,7 +1920,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
           start: new Date(Date.UTC(2036, 0, 8, 15, 0, 0)).toISOString(),
           attendee: {
             name: "Mr Proper",
-            email: "mr_proper@gmail.com",
+            email: uniqueAttendeeEmail("mr-proper"),
             timeZone: "Europe/Rome",
             language: "it",
           },
@@ -1951,7 +1953,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
           username: user.username || "",
           attendee: {
             name: "Mr Proper",
-            email: "mr_proper@gmail.com",
+            email: uniqueAttendeeEmail("mr-proper"),
             timeZone: "Europe/Rome",
             language: "it",
           },
@@ -2105,7 +2107,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
           eventTypeId: eventTypeWithAllLocationsId,
           attendee: {
             name: "Mr Proper",
-            email: "mr_proper@gmail.com",
+            email: uniqueAttendeeEmail("mr-proper"),
             timeZone: "Europe/Rome",
             language: "it",
           },
@@ -2141,7 +2143,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
           eventTypeId: eventTypeWithAllLocationsId,
           attendee: {
             name: "Mr Proper",
-            email: "mr_proper@gmail.com",
+            email: uniqueAttendeeEmail("mr-proper"),
             timeZone: "Europe/Rome",
             language: "it",
           },
@@ -2174,7 +2176,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
           eventTypeId: eventTypeWithAllLocationsId,
           attendee: {
             name: "Mr Proper",
-            email: "mr_proper@gmail.com",
+            email: uniqueAttendeeEmail("mr-proper"),
             timeZone: "Europe/Rome",
             language: "it",
           },
@@ -2207,7 +2209,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
           eventTypeId: eventTypeWithAllLocationsId,
           attendee: {
             name: "Mr Proper",
-            email: "mr_proper@gmail.com",
+            email: uniqueAttendeeEmail("mr-proper"),
             timeZone: "Europe/Rome",
             language: "it",
           },
@@ -2242,7 +2244,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
           eventTypeId: eventTypeWithAllLocationsId,
           attendee: {
             name: "Mr Proper",
-            email: "mr_proper@gmail.com",
+            email: uniqueAttendeeEmail("mr-proper"),
             timeZone: "Europe/Rome",
             language: "it",
           },
@@ -2278,7 +2280,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
           eventTypeId: eventTypeWithAllLocationsId,
           attendee: {
             name: "Mr Proper",
-            email: "mr_proper@gmail.com",
+            email: uniqueAttendeeEmail("mr-proper"),
             timeZone: "Europe/Rome",
             language: "it",
           },
@@ -2314,7 +2316,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
           eventTypeId: eventTypeWithAllLocationsId,
           attendee: {
             name: "Mr Proper",
-            email: "mr_proper@gmail.com",
+            email: uniqueAttendeeEmail("mr-proper"),
             timeZone: "Europe/Rome",
             language: "it",
           },
@@ -2348,7 +2350,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
           eventTypeId: eventTypeWithAllLocationsId,
           attendee: {
             name: "Mr Proper",
-            email: "mr_proper@gmail.com",
+            email: uniqueAttendeeEmail("mr-proper"),
             timeZone: "Europe/Rome",
             language: "it",
           },
@@ -2371,7 +2373,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
           eventTypeId: eventTypeWithAllLocationsId,
           attendee: {
             name: "Mr Proper",
-            email: "mr_proper@gmail.com",
+            email: uniqueAttendeeEmail("mr-proper"),
             timeZone: "Europe/Rome",
             language: "it",
           },
@@ -2522,7 +2524,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
             eventTypeId,
             attendee: {
               name: "Mr Proper",
-              email: "mr_proper@gmail.com",
+              email: uniqueAttendeeEmail("mr-proper"),
               timeZone: "Europe/Rome",
               language: "it",
             },
@@ -2558,7 +2560,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
             eventTypeId: recurringEventTypeId,
             attendee: {
               name: "Mr Proper",
-              email: "mr_proper@gmail.com",
+              email: uniqueAttendeeEmail("mr-proper"),
               timeZone: "Europe/Rome",
               language: "it",
             },
@@ -2586,7 +2588,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
               eventTypeId: eventTypeRequiresConfirmationId,
               attendee: {
                 name: "Mr Proper",
-                email: "mr_proper@gmail.com",
+                email: uniqueAttendeeEmail("mr-proper"),
                 timeZone: "Europe/Rome",
                 language: "it",
               },
@@ -2656,7 +2658,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
             eventTypeId,
             attendee: {
               name: "Mr Proper",
-              email: "mr_proper@gmail.com",
+              email: uniqueAttendeeEmail("mr-proper"),
               timeZone: "Europe/Rome",
               language: "it",
             },
@@ -2693,7 +2695,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
             eventTypeId: recurringEventTypeId,
             attendee: {
               name: "Mr Proper",
-              email: "mr_proper@gmail.com",
+              email: uniqueAttendeeEmail("mr-proper"),
               timeZone: "Europe/Rome",
               language: "it",
             },
@@ -2722,7 +2724,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
               eventTypeId: eventTypeRequiresConfirmationId,
               attendee: {
                 name: "Mr Proper",
-                email: "mr_proper@gmail.com",
+                email: uniqueAttendeeEmail("mr-proper"),
                 timeZone: "Europe/Rome",
                 language: "it",
               },
@@ -2797,7 +2799,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
               eventTypeId: eventTypeIdWithMaxBookerBookings.id,
               attendee: {
                 name: "alice",
-                email: "alice@gmail.com",
+                email: uniqueAttendeeEmail("alice"),
                 timeZone: "Europe/Rome",
                 language: "it",
               },
@@ -2838,7 +2840,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
               eventTypeId: eventTypeIdWithMaxBookerBookings.id,
               attendee: {
                 name: "bob",
-                email: "bob@gmail.com",
+                email: uniqueAttendeeEmail("bob"),
                 timeZone: "Europe/Rome",
                 language: "it",
               },
@@ -2882,7 +2884,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
               eventTypeId: eventTypeIdWithMaxBookerBookings.id,
               attendee: {
                 name: "charlie",
-                email: "charlie@gmail.com",
+                email: uniqueAttendeeEmail("charlie"),
                 timeZone: "Europe/Rome",
                 language: "it",
               },
