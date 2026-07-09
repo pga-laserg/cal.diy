@@ -19,13 +19,13 @@ import { randomString } from "test/utils/randomString";
 import { withApiAuth } from "test/utils/withApiAuth";
 import { AppModule } from "@/app.module";
 import { bootstrap } from "@/bootstrap";
+import { PermissionsGuard } from "@/modules/auth/guards/permissions/permissions.guard";
+import { PrismaModule } from "@/modules/prisma/prisma.module";
+import { UsersModule } from "@/modules/users/users.module";
 import { CreateBookingOutput_2024_08_13 } from "@/platform/bookings/2024-08-13/outputs/create-booking.output";
 import { CreateScheduleInput_2024_04_15 } from "@/platform/schedules/schedules_2024_04_15/inputs/create-schedule.input";
 import { SchedulesModule_2024_04_15 } from "@/platform/schedules/schedules_2024_04_15/schedules.module";
 import { SchedulesService_2024_04_15 } from "@/platform/schedules/schedules_2024_04_15/services/schedules.service";
-import { PermissionsGuard } from "@/modules/auth/guards/permissions/permissions.guard";
-import { PrismaModule } from "@/modules/prisma/prisma.module";
-import { UsersModule } from "@/modules/users/users.module";
 
 describe("Bookings Endpoints 2024-08-13", () => {
   describe("Creating recurring bookings", () => {
@@ -104,9 +104,9 @@ describe("Bookings Endpoints 2024-08-13", () => {
       bootstrap(app as NestExpressApplication);
 
       await app.init();
-    });
+    }, 60 * 1000);
 
-    async function createOAuthClient(organizationId: number) {
+    async function createOAuthClient(organizationId: number): Promise<PlatformOAuthClient> {
       const data = {
         logo: "logo-url",
         name: "name",
@@ -127,7 +127,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
         eventTypeId: recurringEventTypeId,
         attendee: {
           name: "Mr Proper Recurring",
-          email: "mr_proper_recurring@gmail.com",
+          email: `mr-proper-recurring-${randomString()}@gmail.com`,
           timeZone: "Europe/Rome",
           language: "it",
         },
@@ -149,7 +149,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
         eventTypeId: recurringEventTypeId,
         attendee: {
           name: "Mr Proper Recurring",
-          email: "mr_proper_recurring@gmail.com",
+          email: `mr-proper-recurring-${randomString()}@gmail.com`,
           timeZone: "Europe/Rome",
           language: "it",
         },
@@ -228,7 +228,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
         eventTypeId: recurringEventTypeId,
         attendee: {
           name: "Mr Proper Recurring",
-          email: "mr_proper_recurring@gmail.com",
+          email: `mr-proper-recurring-${randomString()}@gmail.com`,
           timeZone: "Europe/Rome",
           language: "it",
         },
@@ -323,19 +323,32 @@ describe("Bookings Endpoints 2024-08-13", () => {
     });
 
     afterEach(async () => {
-      await bookingsRepositoryFixture.deleteAllBookings(user.id, user.email);
+      if (user) {
+        await Promise.allSettled([bookingsRepositoryFixture.deleteAllBookings(user.id, user.email)]);
+      }
     });
 
     afterAll(async () => {
-      await oauthClientRepositoryFixture.delete(oAuthClient.id);
-      await teamRepositoryFixture.delete(organization.id);
-      await userRepositoryFixture.deleteByEmail(user.email);
-      await bookingsRepositoryFixture.deleteAllBookings(user.id, user.email);
-      await app.close();
+      if (user) {
+        await Promise.allSettled([bookingsRepositoryFixture.deleteAllBookings(user.id, user.email)]);
+        await Promise.allSettled([userRepositoryFixture.deleteByEmail(user.email)]);
+      }
+
+      if (oAuthClient) {
+        await Promise.allSettled([oauthClientRepositoryFixture.delete(oAuthClient.id)]);
+      }
+
+      if (organization) {
+        await Promise.allSettled([teamRepositoryFixture.delete(organization.id)]);
+      }
+
+      if (app) {
+        await Promise.allSettled([app.close()]);
+      }
     });
   });
 
-  function responseDataIsRecurringBooking(data: any): data is RecurringBookingOutput_2024_08_13[] {
+  function responseDataIsRecurringBooking(data: unknown): data is RecurringBookingOutput_2024_08_13[] {
     return Array.isArray(data);
   }
 
@@ -425,9 +438,9 @@ describe("Bookings Endpoints 2024-08-13", () => {
       bootstrap(app as NestExpressApplication);
 
       await app.init();
-    });
+    }, 60 * 1000);
 
-    async function createOAuthClient(organizationId: number) {
+    async function createOAuthClient(organizationId: number): Promise<PlatformOAuthClient> {
       const data = {
         logo: "logo-url",
         name: "name",
@@ -446,7 +459,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
         eventTypeId: recurringEventTypeId,
         attendee: {
           name: "Mr Proper Recurring",
-          email: "mr_proper_recurring@gmail.com",
+          email: `mr-proper-recurring-${randomString()}@gmail.com`,
           timeZone: "Europe/Rome",
           language: "it",
         },
@@ -541,11 +554,22 @@ describe("Bookings Endpoints 2024-08-13", () => {
     });
 
     afterAll(async () => {
-      await oauthClientRepositoryFixture.delete(oAuthClient.id);
-      await teamRepositoryFixture.delete(organization.id);
-      await userRepositoryFixture.deleteByEmail(user.email);
-      await bookingsRepositoryFixture.deleteAllBookings(user.id, user.email);
-      await app.close();
+      if (user) {
+        await Promise.allSettled([bookingsRepositoryFixture.deleteAllBookings(user.id, user.email)]);
+        await Promise.allSettled([userRepositoryFixture.deleteByEmail(user.email)]);
+      }
+
+      if (oAuthClient) {
+        await Promise.allSettled([oauthClientRepositoryFixture.delete(oAuthClient.id)]);
+      }
+
+      if (organization) {
+        await Promise.allSettled([teamRepositoryFixture.delete(organization.id)]);
+      }
+
+      if (app) {
+        await Promise.allSettled([app.close()]);
+      }
     });
   });
 
@@ -635,9 +659,9 @@ describe("Bookings Endpoints 2024-08-13", () => {
       bootstrap(app as NestExpressApplication);
 
       await app.init();
-    });
+    }, 60 * 1000);
 
-    async function createOAuthClient(organizationId: number) {
+    async function createOAuthClient(organizationId: number): Promise<PlatformOAuthClient> {
       const data = {
         logo: "logo-url",
         name: "name",
@@ -656,7 +680,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
         eventTypeId: recurringEventTypeId,
         attendee: {
           name: "Mr Proper Recurring",
-          email: "mr_proper_recurring@gmail.com",
+          email: `mr-proper-recurring-${randomString()}@gmail.com`,
           timeZone: "Europe/Rome",
           language: "it",
         },
@@ -714,11 +738,22 @@ describe("Bookings Endpoints 2024-08-13", () => {
     });
 
     afterAll(async () => {
-      await oauthClientRepositoryFixture.delete(oAuthClient.id);
-      await teamRepositoryFixture.delete(organization.id);
-      await userRepositoryFixture.deleteByEmail(user.email);
-      await bookingsRepositoryFixture.deleteAllBookings(user.id, user.email);
-      await app.close();
+      if (user) {
+        await Promise.allSettled([bookingsRepositoryFixture.deleteAllBookings(user.id, user.email)]);
+        await Promise.allSettled([userRepositoryFixture.deleteByEmail(user.email)]);
+      }
+
+      if (oAuthClient) {
+        await Promise.allSettled([oauthClientRepositoryFixture.delete(oAuthClient.id)]);
+      }
+
+      if (organization) {
+        await Promise.allSettled([teamRepositoryFixture.delete(organization.id)]);
+      }
+
+      if (app) {
+        await Promise.allSettled([app.close()]);
+      }
     });
   });
 });

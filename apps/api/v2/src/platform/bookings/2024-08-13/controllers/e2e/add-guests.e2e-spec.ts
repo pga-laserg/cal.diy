@@ -10,7 +10,7 @@ import {
   OrganizerAddGuestsEmail,
 } from "@calcom/platform-libraries/emails";
 import type { BookingOutput_2024_08_13, CreateBookingInput_2024_08_13 } from "@calcom/platform-types";
-import type { Team, User } from "@calcom/prisma/client";
+import type { PlatformOAuthClient, Team, User } from "@calcom/prisma/client";
 import { INestApplication } from "@nestjs/common";
 import { NestExpressApplication } from "@nestjs/platform-express";
 import { Test } from "@nestjs/testing";
@@ -24,14 +24,14 @@ import { UserRepositoryFixture } from "test/fixtures/repository/users.repository
 import { randomString } from "test/utils/randomString";
 import { AppModule } from "@/app.module";
 import { bootstrap } from "@/bootstrap";
+import { PermissionsGuard } from "@/modules/auth/guards/permissions/permissions.guard";
+import { PrismaModule } from "@/modules/prisma/prisma.module";
+import { UsersModule } from "@/modules/users/users.module";
 import { AddGuestsOutput_2024_08_13 } from "@/platform/bookings/2024-08-13/outputs/add-guests.output";
 import { CreateBookingOutput_2024_08_13 } from "@/platform/bookings/2024-08-13/outputs/create-booking.output";
 import { CreateScheduleInput_2024_04_15 } from "@/platform/schedules/schedules_2024_04_15/inputs/create-schedule.input";
 import { SchedulesModule_2024_04_15 } from "@/platform/schedules/schedules_2024_04_15/schedules.module";
 import { SchedulesService_2024_04_15 } from "@/platform/schedules/schedules_2024_04_15/services/schedules.service";
-import { PermissionsGuard } from "@/modules/auth/guards/permissions/permissions.guard";
-import { PrismaModule } from "@/modules/prisma/prisma.module";
-import { UsersModule } from "@/modules/users/users.module";
 
 const attendeeAddGuestsEmailSpy = jest
   .spyOn(AttendeeAddGuestsEmail.prototype, "getHtml")
@@ -99,9 +99,9 @@ describe("Bookings Endpoints 2024-08-13 add guests", () => {
     bootstrap(app as NestExpressApplication);
 
     await app.init();
-  });
+  }, 60 * 1000);
 
-  async function setupTestData() {
+  async function setupTestData(): Promise<void> {
     const oAuthClient = await createOAuthClient(organization.id, true);
 
     const organizerUser = await userRepositoryFixture.create({
@@ -169,7 +169,10 @@ describe("Bookings Endpoints 2024-08-13 add guests", () => {
     };
   }
 
-  async function createOAuthClient(organizationId: number, emailsEnabled: boolean) {
+  async function createOAuthClient(
+    organizationId: number,
+    emailsEnabled: boolean
+  ): Promise<PlatformOAuthClient> {
     const data = {
       logo: "logo-url",
       name: "name",
@@ -196,7 +199,7 @@ describe("Bookings Endpoints 2024-08-13 add guests", () => {
         eventTypeId: testSetup.eventTypeId,
         attendee: {
           name: "Mr Proper",
-          email: "mr_proper@gmail.com",
+          email: `mr-proper-${randomString()}@gmail.com`,
           timeZone: "Europe/Rome",
           language: "it",
         },
@@ -225,7 +228,7 @@ describe("Bookings Endpoints 2024-08-13 add guests", () => {
       }
 
       testSetup.bookingUid = createBookingResponseBody.data.uid;
-    });
+    }, 60 * 1000);
 
     describe("Authentication", () => {
       it("should return 401 when adding guests without authentication", async () => {
@@ -387,7 +390,7 @@ describe("Bookings Endpoints 2024-08-13 add guests", () => {
         eventTypeId: eventType.id,
         attendee: {
           name: "No Email User",
-          email: "no.email.user@gmail.com",
+          email: `no-email-user-${randomString()}@gmail.com`,
           timeZone: "Europe/Rome",
           language: "it",
         },
@@ -425,7 +428,7 @@ describe("Bookings Endpoints 2024-08-13 add guests", () => {
         eventTypeId: eventType.id,
         bookingUid: createBookingResponseBody.data.uid,
       };
-    });
+    }, 60 * 1000);
 
     it("should NOT send emails when adding guests (emails disabled)", async () => {
       attendeeAddGuestsEmailSpy.mockClear();
@@ -453,27 +456,51 @@ describe("Bookings Endpoints 2024-08-13 add guests", () => {
     });
 
     afterAll(async () => {
-      await userRepositoryFixture.deleteByEmail(emailsDisabledSetup.organizer.user.email);
-      await bookingsRepositoryFixture.deleteAllBookings(
-        emailsDisabledSetup.organizer.user.id,
-        emailsDisabledSetup.organizer.user.email
-      );
+      if (emailsDisabledSetup?.organizer) {
+        await Promise.allSettled([
+          bookingsRepositoryFixture.deleteAllBookings(
+            emailsDisabledSetup.organizer.user.id,
+            emailsDisabledSetup.organizer.user.email
+          ),
+        ]);
+        await Promise.allSettled([
+          userRepositoryFixture.deleteByEmail(emailsDisabledSetup.organizer.user.email),
+        ]);
+      }
     });
   });
 
   afterAll(async () => {
-    await teamRepositoryFixture.delete(organization.id);
+    if (testSetup?.organizer) {
+      await Promise.allSettled([
+        bookingsRepositoryFixture.deleteAllBookings(
+          testSetup.organizer.user.id,
+          testSetup.organizer.user.email
+        ),
+      ]);
+    }
 
-    await userRepositoryFixture.deleteByEmail(testSetup.organizer.user.email);
-    await userRepositoryFixture.deleteByEmail(testSetup.unrelatedUser.user.email);
-    await userRepositoryFixture.deleteByEmail(testSetup.guest.user.email);
+    const userCleanupTasks: Promise<unknown>[] = [];
 
-    await bookingsRepositoryFixture.deleteAllBookings(
-      testSetup.organizer.user.id,
-      testSetup.organizer.user.email
-    );
+    if (testSetup?.organizer) {
+      userCleanupTasks.push(userRepositoryFixture.deleteByEmail(testSetup.organizer.user.email));
+    }
+    if (testSetup?.unrelatedUser) {
+      userCleanupTasks.push(userRepositoryFixture.deleteByEmail(testSetup.unrelatedUser.user.email));
+    }
+    if (testSetup?.guest) {
+      userCleanupTasks.push(userRepositoryFixture.deleteByEmail(testSetup.guest.user.email));
+    }
 
-    await app.close();
+    await Promise.allSettled(userCleanupTasks);
+
+    if (organization) {
+      await Promise.allSettled([teamRepositoryFixture.delete(organization.id)]);
+    }
+
+    if (app) {
+      await Promise.allSettled([app.close()]);
+    }
   });
 
   function responseDataIsBooking(data: unknown): data is BookingOutput_2024_08_13 {

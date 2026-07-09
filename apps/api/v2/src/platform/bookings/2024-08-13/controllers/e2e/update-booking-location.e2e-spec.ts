@@ -4,10 +4,8 @@ import {
   SUCCESS_STATUS,
   VERSION_2024_08_13,
 } from "@calcom/platform-constants";
-import type { BookingOutput_2024_08_13 } from "@calcom/platform-types";
-import { UpdateBookingLocationInput_2024_08_13 } from "@calcom/platform-types";
-import type { Team } from "@calcom/prisma/client";
-import { Booking } from "@calcom/prisma/client";
+import type { BookingOutput_2024_08_13, UpdateBookingLocationInput_2024_08_13 } from "@calcom/platform-types";
+import type { Booking, PlatformOAuthClient, Team } from "@calcom/prisma/client";
 import { INestApplication } from "@nestjs/common";
 import { NestExpressApplication } from "@nestjs/platform-express";
 import { Test } from "@nestjs/testing";
@@ -40,13 +38,19 @@ jest.mock("@calcom/platform-libraries", () => {
     ...actual,
     updateEvent: jest.fn().mockImplementation((_credential, evt) => {
       const isGoogleMeet = evt.conferenceData?.createRequest;
+      const updatedEvent: { id: string; hangoutLink?: string; url?: string } = {
+        id: "MOCK_UPDATED_EVENT_ID",
+      };
+
+      if (isGoogleMeet) {
+        updatedEvent.hangoutLink = MOCK_GOOGLE_MEET_URL;
+      } else {
+        updatedEvent.url = MOCK_MS_TEAMS_URL;
+      }
+
       return Promise.resolve({
         uid: "MOCK_CALENDAR_UID",
-        updatedEvent: {
-          id: "MOCK_UPDATED_EVENT_ID",
-          hangoutLink: isGoogleMeet ? MOCK_GOOGLE_MEET_URL : undefined,
-          url: isGoogleMeet ? undefined : MOCK_MS_TEAMS_URL,
-        },
+        updatedEvent,
       });
     }),
     CredentialRepository: {
@@ -78,14 +82,13 @@ import { randomString } from "test/utils/randomString";
 import { mockThrottlerGuard } from "test/utils/withNoThrottler";
 import { AppModule } from "@/app.module";
 import { bootstrap } from "@/bootstrap";
+import { PermissionsGuard } from "@/modules/auth/guards/permissions/permissions.guard";
+import { PrismaModule } from "@/modules/prisma/prisma.module";
+import { UsersModule } from "@/modules/users/users.module";
 import { UpdateBookingLocationOutput_2024_08_13 } from "@/platform/bookings/2024-08-13/outputs/update-location.output";
 import { CreateScheduleInput_2024_04_15 } from "@/platform/schedules/schedules_2024_04_15/inputs/create-schedule.input";
 import { SchedulesModule_2024_04_15 } from "@/platform/schedules/schedules_2024_04_15/schedules.module";
 import { SchedulesService_2024_04_15 } from "@/platform/schedules/schedules_2024_04_15/services/schedules.service";
-import { PermissionsGuard } from "@/modules/auth/guards/permissions/permissions.guard";
-import { PrismaModule } from "@/modules/prisma/prisma.module";
-import { PrismaWriteService } from "@/modules/prisma/prisma-write.service";
-import { UsersModule } from "@/modules/users/users.module";
 
 type TestUser = {
   id: number;
@@ -113,7 +116,6 @@ describe("Bookings Endpoints 2024-08-13 update booking location", () => {
   let oauthClientRepositoryFixture: OAuthClientRepositoryFixture;
   let teamRepositoryFixture: TeamRepositoryFixture;
   let tokensRepositoryFixture: TokensRepositoryFixture;
-  let prismaWrite: PrismaWriteService;
 
   let testSetup: TestSetup;
 
@@ -137,7 +139,6 @@ describe("Bookings Endpoints 2024-08-13 update booking location", () => {
     teamRepositoryFixture = new TeamRepositoryFixture(moduleRef);
     schedulesService = moduleRef.get<SchedulesService_2024_04_15>(SchedulesService_2024_04_15);
     tokensRepositoryFixture = new TokensRepositoryFixture(moduleRef);
-    prismaWrite = moduleRef.get(PrismaWriteService);
 
     organization = await teamRepositoryFixture.create({
       name: `update-booking-location-organization-${randomString()}`,
@@ -149,7 +150,7 @@ describe("Bookings Endpoints 2024-08-13 update booking location", () => {
     bootstrap(app as NestExpressApplication);
 
     await app.init();
-  });
+  }, 60 * 1000);
 
   describe("PATCH /v2/bookings/:bookingUid/location", () => {
     it("should return 401 when updating location without authentication", async () => {
@@ -214,7 +215,7 @@ describe("Bookings Endpoints 2024-08-13 update booking location", () => {
         });
         bookingUid = booking.uid;
         bookingId = booking.id;
-      });
+      }, 60 * 1000);
 
       it("can update location to type address", async () => {
         const updatedBookingBody: UpdateBookingLocationInput_2024_08_13 = {
@@ -656,17 +657,34 @@ describe("Bookings Endpoints 2024-08-13 update booking location", () => {
   });
 
   afterAll(async () => {
-    await teamRepositoryFixture.delete(organization.id);
+    if (testSetup?.organizer) {
+      await Promise.allSettled([
+        bookingsRepositoryFixture.deleteAllBookings(testSetup.organizer.id, testSetup.organizer.email),
+      ]);
+    }
 
-    await userRepositoryFixture.deleteByEmail(testSetup.organizer.email);
-    await userRepositoryFixture.deleteByEmail(testSetup.unrelatedUser.email);
+    const userCleanupTasks: Promise<unknown>[] = [];
 
-    await bookingsRepositoryFixture.deleteAllBookings(testSetup.organizer.id, testSetup.organizer.email);
+    if (testSetup?.organizer) {
+      userCleanupTasks.push(userRepositoryFixture.deleteByEmail(testSetup.organizer.email));
+    }
 
-    await app.close();
+    if (testSetup?.unrelatedUser) {
+      userCleanupTasks.push(userRepositoryFixture.deleteByEmail(testSetup.unrelatedUser.email));
+    }
+
+    await Promise.allSettled(userCleanupTasks);
+
+    if (organization) {
+      await Promise.allSettled([teamRepositoryFixture.delete(organization.id)]);
+    }
+
+    if (app) {
+      await Promise.allSettled([app.close()]);
+    }
   });
 
-  async function setupTestData() {
+  async function setupTestData(): Promise<void> {
     const oAuthClient = await createOAuthClient(organization.id);
 
     const organizerUser = await userRepositoryFixture.create({
@@ -719,7 +737,7 @@ describe("Bookings Endpoints 2024-08-13 update booking location", () => {
     };
   }
 
-  async function createOAuthClient(organizationId: number) {
+  async function createOAuthClient(organizationId: number): Promise<PlatformOAuthClient> {
     const data = {
       logo: "logo-url",
       name: "name",
@@ -732,7 +750,7 @@ describe("Bookings Endpoints 2024-08-13 update booking location", () => {
     return oauthClientRepositoryFixture.create(organizationId, data, secret);
   }
 
-  async function createBooking(location?: string) {
+  async function createBooking(location?: string): Promise<{ bookingUid: string; location: string }> {
     const bookingLocation = location ?? `https://initial-${randomString()}.example.com`;
     const bookingUid = `booking-uid-${randomString(10)}`;
 
