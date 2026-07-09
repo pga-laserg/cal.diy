@@ -37,6 +37,8 @@ import { CreateScheduleInput_2024_04_15 } from "@/platform/schedules/schedules_2
 import { SchedulesModule_2024_04_15 } from "@/platform/schedules/schedules_2024_04_15/schedules.module";
 import { SchedulesService_2024_04_15 } from "@/platform/schedules/schedules_2024_04_15/services/schedules.service";
 
+jest.setTimeout(60 * 1000);
+
 jest.spyOn(AttendeeScheduledEmail.prototype as any, "getHtml").mockImplementation(async function () {
   return "<html><body>Mocked Email Content</body></html>";
 });

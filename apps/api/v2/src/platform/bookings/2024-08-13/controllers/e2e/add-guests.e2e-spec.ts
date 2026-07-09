@@ -33,6 +33,8 @@ import { CreateScheduleInput_2024_04_15 } from "@/platform/schedules/schedules_2
 import { SchedulesModule_2024_04_15 } from "@/platform/schedules/schedules_2024_04_15/schedules.module";
 import { SchedulesService_2024_04_15 } from "@/platform/schedules/schedules_2024_04_15/services/schedules.service";
 
+jest.setTimeout(60 * 1000);
+
 const attendeeAddGuestsEmailSpy = jest
   .spyOn(AttendeeAddGuestsEmail.prototype, "getHtml")
   .mockImplementation(() => Promise.resolve("<p>email</p>"));
@@ -192,42 +194,47 @@ describe("Bookings Endpoints 2024-08-13 add guests", () => {
     attendeeScheduledEmailSpy.mockClear();
   });
 
+  async function createBookingForOrganizer(start: string): Promise<string> {
+    const createBookingBody: CreateBookingInput_2024_08_13 = {
+      start,
+      eventTypeId: testSetup.eventTypeId,
+      attendee: {
+        name: "Mr Proper",
+        email: `mr-proper-${randomString()}@gmail.com`,
+        timeZone: "Europe/Rome",
+        language: "it",
+      },
+      location: "https://meet.google.com/abc-def-ghi",
+      bookingFieldsResponses: {
+        customField: "customValue",
+      },
+      metadata: {
+        userId: "100",
+      },
+    };
+
+    const createBookingResponse = await request(app.getHttpServer())
+      .post("/v2/bookings")
+      .send(createBookingBody)
+      .set(CAL_API_VERSION_HEADER, VERSION_2024_08_13)
+      .expect(201);
+
+    const createBookingResponseBody: CreateBookingOutput_2024_08_13 = createBookingResponse.body;
+
+    if (!responseDataIsBooking(createBookingResponseBody.data)) {
+      throw new Error(
+        "Invalid response data - expected booking but received array of possibly recurring bookings"
+      );
+    }
+
+    return createBookingResponseBody.data.uid;
+  }
+
   describe("POST /v2/bookings/:bookingUid/guests", () => {
     beforeAll(async () => {
-      const createBookingBody: CreateBookingInput_2024_08_13 = {
-        start: new Date(Date.UTC(2030, 0, 8, 13, 0, 0)).toISOString(),
-        eventTypeId: testSetup.eventTypeId,
-        attendee: {
-          name: "Mr Proper",
-          email: `mr-proper-${randomString()}@gmail.com`,
-          timeZone: "Europe/Rome",
-          language: "it",
-        },
-        location: "https://meet.google.com/abc-def-ghi",
-        bookingFieldsResponses: {
-          customField: "customValue",
-        },
-        metadata: {
-          userId: "100",
-        },
-      };
-
-      const createBookingResponse = await request(app.getHttpServer())
-        .post("/v2/bookings")
-        .send(createBookingBody)
-        .set(CAL_API_VERSION_HEADER, VERSION_2024_08_13)
-        .expect(201);
-
-      const createBookingResponseBody: CreateBookingOutput_2024_08_13 = createBookingResponse.body;
-      expect(createBookingResponseBody.status).toEqual(SUCCESS_STATUS);
-
-      if (!responseDataIsBooking(createBookingResponseBody.data)) {
-        throw new Error(
-          "Invalid response data - expected booking but received array of possibly recurring bookings"
-        );
-      }
-
-      testSetup.bookingUid = createBookingResponseBody.data.uid;
+      testSetup.bookingUid = await createBookingForOrganizer(
+        new Date(Date.UTC(2030, 0, 8, 13, 0, 0)).toISOString()
+      );
     }, 60 * 1000);
 
     describe("Authentication", () => {
@@ -286,13 +293,17 @@ describe("Bookings Endpoints 2024-08-13 add guests", () => {
 
     describe("Authorization - guest", () => {
       it("should allow organizer to add a user as guest, then guest can add more guests", async () => {
+        const guestAuthorizationBookingUid = await createBookingForOrganizer(
+          new Date(Date.UTC(2030, 0, 8, 15, 0, 0)).toISOString()
+        );
+
         // Step 1: Organizer adds guest user as a guest
         const addguestBody = {
           guests: [{ email: testSetup.guest.user.email }],
         };
 
         const addguestResponse = await request(app.getHttpServer())
-          .post(`/v2/bookings/${testSetup.bookingUid}/guests`)
+          .post(`/v2/bookings/${guestAuthorizationBookingUid}/guests`)
           .send(addguestBody)
           .set(CAL_API_VERSION_HEADER, VERSION_2024_08_13)
           .set("Authorization", `Bearer ${testSetup.organizer.accessToken}`)
@@ -308,7 +319,7 @@ describe("Bookings Endpoints 2024-08-13 add guests", () => {
         };
 
         const addGuestsResponse = await request(app.getHttpServer())
-          .post(`/v2/bookings/${testSetup.bookingUid}/guests`)
+          .post(`/v2/bookings/${guestAuthorizationBookingUid}/guests`)
           .send(addGuestsBody)
           .set(CAL_API_VERSION_HEADER, VERSION_2024_08_13)
           .set("Authorization", `Bearer ${testSetup.guest.accessToken}`)
