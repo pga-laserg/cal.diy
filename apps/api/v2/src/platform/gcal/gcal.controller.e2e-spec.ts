@@ -1,7 +1,8 @@
-import type { App, Credential, PlatformOAuthClient, Prisma, Team, User } from "@calcom/prisma/client";
+import type { Credential, PlatformOAuthClient, Team, User } from "@calcom/prisma/client";
 import { INestApplication } from "@nestjs/common";
 import { NestExpressApplication } from "@nestjs/platform-express";
 import { Test } from "@nestjs/testing";
+import { OAuth2Client } from "googleapis-common";
 import request from "supertest";
 import { CredentialsRepositoryFixture } from "test/fixtures/repository/credentials.repository.fixture";
 import { OAuthClientRepositoryFixture } from "test/fixtures/repository/oauth-client.repository.fixture";
@@ -12,18 +13,21 @@ import { CalendarsServiceMock } from "test/mocks/calendars-service-mock";
 import { randomString } from "test/utils/randomString";
 import { AppModule } from "@/app.module";
 import { bootstrap } from "@/bootstrap";
-import { CalendarsService } from "@/platform/calendars/services/calendars.service";
 import { HttpExceptionFilter } from "@/filters/http-exception.filter";
 import { PrismaExceptionFilter } from "@/filters/prisma-exception.filter";
+import { GCalService } from "@/modules/apps/services/gcal.service";
 import { PermissionsGuard } from "@/modules/auth/guards/permissions/permissions.guard";
-import { PrismaWriteService } from "@/modules/prisma/prisma-write.service";
 import { TokensModule } from "@/modules/tokens/tokens.module";
 import { UsersModule } from "@/modules/users/users.module";
+import { CalendarsService } from "@/platform/calendars/services/calendars.service";
 
 const CLIENT_REDIRECT_URI = "http://localhost:5555";
 
+let describePlatformGcal: typeof describe = describe;
 // biome-ignore lint/style/noProcessEnv: Need to check env availability before test setup
-const describePlatformGcal = process.env.GOOGLE_API_CREDENTIALS ? describe : describe.skip;
+if (!process.env.GOOGLE_API_CREDENTIALS) {
+  describePlatformGcal = describe.skip;
+}
 
 describePlatformGcal("Platform Gcal Endpoints", () => {
   let app: INestApplication;
@@ -39,8 +43,6 @@ describePlatformGcal("Platform Gcal Endpoints", () => {
   let gcalCredentials: Credential;
   let accessTokenSecret: string;
   let refreshTokenSecret: string;
-  let prismaWriteService: PrismaWriteService;
-  let previousGoogleCalendarApp: Pick<App, "enabled" | "keys"> | null;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -61,18 +63,6 @@ describePlatformGcal("Platform Gcal Endpoints", () => {
     teamRepositoryFixture = new TeamRepositoryFixture(moduleRef);
     tokensRepositoryFixture = new TokensRepositoryFixture(moduleRef);
     credentialsRepositoryFixture = new CredentialsRepositoryFixture(moduleRef);
-    prismaWriteService = moduleRef.get(PrismaWriteService);
-    previousGoogleCalendarApp = await prismaWriteService.prisma.app.findUnique({
-      where: { slug: "google-calendar" },
-      select: { enabled: true, keys: true },
-    });
-    await prismaWriteService.prisma.app.update({
-      where: { slug: "google-calendar" },
-      data: {
-        enabled: true,
-        keys: getGoogleCalendarAppKeys(),
-      },
-    });
     organization = await teamRepositoryFixture.create({ name: `gcal-organization-${randomString()}` });
     oAuthClient = await createOAuthClient(organization.id);
     user = await userRepositoryFixture.createOAuthManagedUser(
@@ -83,12 +73,15 @@ describePlatformGcal("Platform Gcal Endpoints", () => {
     accessTokenSecret = tokens.accessToken;
     refreshTokenSecret = tokens.refreshToken;
     await app.init();
+    jest.spyOn(GCalService.prototype, "getOAuthClient").mockImplementation(async (redirectUri: string) => {
+      return new OAuth2Client("test-client-id", "test-client-secret", redirectUri);
+    });
     jest
       .spyOn(CalendarsService.prototype, "getCalendars")
       .mockImplementation(CalendarsServiceMock.prototype.getCalendars);
   });
 
-  async function createOAuthClient(organizationId: number) {
+  async function createOAuthClient(organizationId: number): Promise<PlatformOAuthClient> {
     const data = {
       logo: "logo-url",
       name: "name",
@@ -99,17 +92,6 @@ describePlatformGcal("Platform Gcal Endpoints", () => {
 
     const client = await oauthClientRepositoryFixture.create(organizationId, data, secret);
     return client;
-  }
-
-  function getGoogleCalendarAppKeys() {
-    // biome-ignore lint/style/noProcessEnv: This e2e spec runs only when the Google OAuth fixture secret is present.
-    const credentials = JSON.parse(process.env.GOOGLE_API_CREDENTIALS || "{}");
-    const keys = credentials.web ?? credentials;
-    return {
-      client_id: keys.client_id,
-      client_secret: keys.client_secret,
-      redirect_uris: keys.redirect_uris,
-    };
   }
 
   it("should be defined", () => {
@@ -196,21 +178,21 @@ describePlatformGcal("Platform Gcal Endpoints", () => {
   });
 
   afterAll(async () => {
-    await Promise.allSettled([
-      oAuthClient ? oauthClientRepositoryFixture.delete(oAuthClient.id) : Promise.resolve(),
-      organization ? teamRepositoryFixture.delete(organization.id) : Promise.resolve(),
-      gcalCredentials ? credentialsRepositoryFixture.delete(gcalCredentials.id) : Promise.resolve(),
-      user ? userRepositoryFixture.deleteByEmail(user.email) : Promise.resolve(),
-      previousGoogleCalendarApp
-        ? prismaWriteService.prisma.app.update({
-            where: { slug: "google-calendar" },
-            data: {
-              enabled: previousGoogleCalendarApp.enabled,
-              keys: previousGoogleCalendarApp.keys as Prisma.InputJsonValue,
-            },
-          })
-        : Promise.resolve(),
-    ]);
+    const cleanupTasks: Promise<unknown>[] = [];
+    if (oAuthClient) {
+      cleanupTasks.push(oauthClientRepositoryFixture.delete(oAuthClient.id));
+    }
+    if (organization) {
+      cleanupTasks.push(teamRepositoryFixture.delete(organization.id));
+    }
+    if (gcalCredentials) {
+      cleanupTasks.push(credentialsRepositoryFixture.delete(gcalCredentials.id));
+    }
+    if (user) {
+      cleanupTasks.push(userRepositoryFixture.deleteByEmail(user.email));
+    }
+    await Promise.allSettled(cleanupTasks);
     await app?.close();
+    jest.restoreAllMocks();
   });
 });

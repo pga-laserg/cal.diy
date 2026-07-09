@@ -1,6 +1,6 @@
 import { CAL_API_VERSION_HEADER, SUCCESS_STATUS, VERSION_2024_08_13 } from "@calcom/platform-constants";
 import type { BookingOutput_2024_08_13, CreateBookingInput_2024_08_13 } from "@calcom/platform-types";
-import type { Team, User } from "@calcom/prisma/client";
+import type { PlatformOAuthClient, Team, User } from "@calcom/prisma/client";
 import { INestApplication } from "@nestjs/common";
 import { NestExpressApplication } from "@nestjs/platform-express";
 import { Test } from "@nestjs/testing";
@@ -15,6 +15,9 @@ import { randomString } from "test/utils/randomString";
 import { mockThrottlerGuard } from "test/utils/withNoThrottler";
 import { AppModule } from "@/app.module";
 import { bootstrap } from "@/bootstrap";
+import { PermissionsGuard } from "@/modules/auth/guards/permissions/permissions.guard";
+import { PrismaModule } from "@/modules/prisma/prisma.module";
+import { UsersModule } from "@/modules/users/users.module";
 import { CreateBookingOutput_2024_08_13 } from "@/platform/bookings/2024-08-13/outputs/create-booking.output";
 import {
   GetBookingAttendeeOutput_2024_08_13,
@@ -23,9 +26,6 @@ import {
 import { CreateScheduleInput_2024_04_15 } from "@/platform/schedules/schedules_2024_04_15/inputs/create-schedule.input";
 import { SchedulesModule_2024_04_15 } from "@/platform/schedules/schedules_2024_04_15/schedules.module";
 import { SchedulesService_2024_04_15 } from "@/platform/schedules/schedules_2024_04_15/services/schedules.service";
-import { PermissionsGuard } from "@/modules/auth/guards/permissions/permissions.guard";
-import { PrismaModule } from "@/modules/prisma/prisma.module";
-import { UsersModule } from "@/modules/users/users.module";
 
 type TestUser = {
   user: User;
@@ -54,6 +54,9 @@ describe("Bookings Endpoints 2024-08-13 get attendees", () => {
   let tokensRepositoryFixture: TokensRepositoryFixture;
 
   let testSetup: TestSetup;
+  const attendeeEmail = `attendee-${randomString()}@example.com`;
+  const attendeeName = "Test Attendee";
+  const attendeeTimeZone = "Europe/Rome";
 
   beforeAll(async () => {
     mockThrottlerGuard();
@@ -85,9 +88,9 @@ describe("Bookings Endpoints 2024-08-13 get attendees", () => {
     bootstrap(app as NestExpressApplication);
 
     await app.init();
-  });
+  }, 60 * 1000);
 
-  async function setupTestData() {
+  async function setupTestData(): Promise<void> {
     const oAuthClient = await createOAuthClient(organization.id);
 
     const organizerUser = await userRepositoryFixture.create({
@@ -143,7 +146,7 @@ describe("Bookings Endpoints 2024-08-13 get attendees", () => {
     };
   }
 
-  async function createOAuthClient(organizationId: number) {
+  async function createOAuthClient(organizationId: number): Promise<PlatformOAuthClient> {
     const data = {
       logo: "logo-url",
       name: "name",
@@ -158,10 +161,6 @@ describe("Bookings Endpoints 2024-08-13 get attendees", () => {
   }
 
   describe("GET /v2/bookings/:bookingUid/attendees", () => {
-    const attendeeEmail = "attendee@example.com";
-    const attendeeName = "Test Attendee";
-    const attendeeTimeZone = "Europe/Rome";
-
     beforeAll(async () => {
       const createBookingBody: CreateBookingInput_2024_08_13 = {
         start: new Date(Date.UTC(2030, 0, 8, 13, 0, 0)).toISOString(),
@@ -197,7 +196,7 @@ describe("Bookings Endpoints 2024-08-13 get attendees", () => {
       }
 
       testSetup.bookingUid = createBookingResponseBody.data.uid;
-    });
+    }, 60 * 1000);
 
     describe("Authentication", () => {
       it("should return 401 when getting attendees without authentication", async () => {
@@ -266,10 +265,6 @@ describe("Bookings Endpoints 2024-08-13 get attendees", () => {
   });
 
   describe("GET /v2/bookings/:bookingUid/attendees/:attendeeId", () => {
-    const attendeeEmail = "attendee@example.com";
-    const attendeeName = "Test Attendee";
-    const attendeeTimeZone = "Europe/Rome";
-
     beforeAll(async () => {
       const getAttendeesResponse = await request(app.getHttpServer())
         .get(`/v2/bookings/${testSetup.bookingUid}/attendees`)
@@ -281,7 +276,7 @@ describe("Bookings Endpoints 2024-08-13 get attendees", () => {
       if (getAttendeesResponseBody.data?.length) {
         testSetup.attendeeId = getAttendeesResponseBody.data[0].id;
       }
-    });
+    }, 60 * 1000);
 
     describe("Authentication", () => {
       it("should return 401 when getting single attendee without authentication", async () => {
@@ -367,17 +362,24 @@ describe("Bookings Endpoints 2024-08-13 get attendees", () => {
   });
 
   afterAll(async () => {
-    await teamRepositoryFixture.delete(organization.id);
-
-    await userRepositoryFixture.deleteByEmail(testSetup.organizer.user.email);
-    await userRepositoryFixture.deleteByEmail(testSetup.unrelatedUser.user.email);
-
-    await bookingsRepositoryFixture.deleteAllBookings(
-      testSetup.organizer.user.id,
-      testSetup.organizer.user.email
-    );
-
-    await app.close();
+    const cleanupTasks: Promise<unknown>[] = [];
+    if (testSetup?.organizer) {
+      cleanupTasks.push(
+        bookingsRepositoryFixture.deleteAllBookings(
+          testSetup.organizer.user.id,
+          testSetup.organizer.user.email
+        )
+      );
+      cleanupTasks.push(userRepositoryFixture.deleteByEmail(testSetup.organizer.user.email));
+    }
+    if (organization) {
+      cleanupTasks.push(teamRepositoryFixture.delete(organization.id));
+    }
+    if (testSetup?.unrelatedUser) {
+      cleanupTasks.push(userRepositoryFixture.deleteByEmail(testSetup.unrelatedUser.user.email));
+    }
+    await Promise.allSettled(cleanupTasks);
+    await app?.close();
   });
 
   function responseDataIsBooking(data: unknown): data is BookingOutput_2024_08_13 {

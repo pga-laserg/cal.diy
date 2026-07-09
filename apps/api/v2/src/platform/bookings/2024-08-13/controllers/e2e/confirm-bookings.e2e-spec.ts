@@ -14,12 +14,12 @@ import { randomString } from "test/utils/randomString";
 import { withApiAuth } from "test/utils/withApiAuth";
 import { AppModule } from "@/app.module";
 import { bootstrap } from "@/bootstrap";
-import { CreateScheduleInput_2024_04_15 } from "@/platform/schedules/schedules_2024_04_15/inputs/create-schedule.input";
-import { SchedulesModule_2024_04_15 } from "@/platform/schedules/schedules_2024_04_15/schedules.module";
-import { SchedulesService_2024_04_15 } from "@/platform/schedules/schedules_2024_04_15/services/schedules.service";
 import { PermissionsGuard } from "@/modules/auth/guards/permissions/permissions.guard";
 import { PrismaModule } from "@/modules/prisma/prisma.module";
 import { UsersModule } from "@/modules/users/users.module";
+import { CreateScheduleInput_2024_04_15 } from "@/platform/schedules/schedules_2024_04_15/inputs/create-schedule.input";
+import { SchedulesModule_2024_04_15 } from "@/platform/schedules/schedules_2024_04_15/schedules.module";
+import { SchedulesService_2024_04_15 } from "@/platform/schedules/schedules_2024_04_15/services/schedules.service";
 
 describe("Bookings Endpoints 2024-08-13", () => {
   describe("Bookings confirmation", () => {
@@ -98,7 +98,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
       await app.init();
     });
 
-    async function createOAuthClient(organizationId: number) {
+    async function createOAuthClient(organizationId: number): Promise<PlatformOAuthClient> {
       const data = {
         logo: "logo-url",
         name: "name",
@@ -127,7 +127,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
         startTime: new Date(Date.UTC(2050, 0, 7, 13, 0, 0)),
         endTime: new Date(Date.UTC(2050, 0, 7, 14, 0, 0)),
         title: "peer coding",
-        uid: "peer-coding-one",
+        uid: `peer-coding-one-${randomString()}`,
         eventType: {
           connect: {
             id: eventTypeId,
@@ -188,7 +188,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
         startTime: new Date(Date.UTC(2050, 0, 7, 10, 0, 0)),
         endTime: new Date(Date.UTC(2050, 0, 7, 11, 0, 0)),
         title: "peer coding",
-        uid: "peer-coding-two",
+        uid: `peer-coding-two-${randomString()}`,
         eventType: {
           connect: {
             id: eventTypeId,
@@ -239,15 +239,23 @@ describe("Bookings Endpoints 2024-08-13", () => {
     });
 
     afterAll(async () => {
-      await oauthClientRepositoryFixture.delete(oAuthClient.id);
-      await teamRepositoryFixture.delete(organization.id);
-      await userRepositoryFixture.deleteByEmail(user.email);
-      await bookingsRepositoryFixture.deleteAllBookings(user.id, user.email);
-      await app.close();
+      const cleanupTasks: Promise<unknown>[] = [];
+      if (user) {
+        cleanupTasks.push(bookingsRepositoryFixture.deleteAllBookings(user.id, user.email));
+        cleanupTasks.push(userRepositoryFixture.deleteByEmail(user.email));
+      }
+      if (oAuthClient) {
+        cleanupTasks.push(oauthClientRepositoryFixture.delete(oAuthClient.id));
+      }
+      if (organization) {
+        cleanupTasks.push(teamRepositoryFixture.delete(organization.id));
+      }
+      await Promise.allSettled(cleanupTasks);
+      await app?.close();
     });
   });
 
-  function responseDataIsBooking(data: any): data is BookingOutput_2024_08_13 {
-    return !Array.isArray(data) && typeof data === "object" && data && "id" in data;
+  function responseDataIsBooking(data: unknown): data is BookingOutput_2024_08_13 {
+    return !Array.isArray(data) && typeof data === "object" && data !== null && "id" in data;
   }
 });

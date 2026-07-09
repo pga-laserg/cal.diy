@@ -1,16 +1,3 @@
-import { INestApplication } from "@nestjs/common";
-import { NestExpressApplication } from "@nestjs/platform-express";
-import { Test } from "@nestjs/testing";
-import request from "supertest";
-import { CredentialsRepositoryFixture } from "test/fixtures/repository/credentials.repository.fixture";
-import { OAuthClientRepositoryFixture } from "test/fixtures/repository/oauth-client.repository.fixture";
-import { TeamRepositoryFixture } from "test/fixtures/repository/team.repository.fixture";
-import { TokensRepositoryFixture } from "test/fixtures/repository/tokens.repository.fixture";
-import { UserRepositoryFixture } from "test/fixtures/repository/users.repository.fixture";
-import { CalendarsServiceMock } from "test/mocks/calendars-service-mock";
-import { IcsCalendarServiceMock } from "test/mocks/ics-calendar-service-mock";
-import { randomString } from "test/utils/randomString";
-
 import {
   GOOGLE_CALENDAR,
   GOOGLE_CALENDAR_ID,
@@ -21,10 +8,23 @@ import {
   SUCCESS_STATUS,
 } from "@calcom/platform-constants";
 import { ICS_CALENDAR, ICS_CALENDAR_TYPE } from "@calcom/platform-constants/apps";
-import type { App, Credential, PlatformOAuthClient, Prisma, Team, User } from "@calcom/prisma/client";
+import type { Credential, PlatformOAuthClient, Team, User } from "@calcom/prisma/client";
+import { INestApplication } from "@nestjs/common";
+import { NestExpressApplication } from "@nestjs/platform-express";
+import { Test } from "@nestjs/testing";
+import { OAuth2Client } from "googleapis-common";
+import request from "supertest";
+import { CredentialsRepositoryFixture } from "test/fixtures/repository/credentials.repository.fixture";
+import { OAuthClientRepositoryFixture } from "test/fixtures/repository/oauth-client.repository.fixture";
+import { TeamRepositoryFixture } from "test/fixtures/repository/team.repository.fixture";
+import { TokensRepositoryFixture } from "test/fixtures/repository/tokens.repository.fixture";
+import { UserRepositoryFixture } from "test/fixtures/repository/users.repository.fixture";
+import { CalendarsServiceMock } from "test/mocks/calendars-service-mock";
+import { IcsCalendarServiceMock } from "test/mocks/ics-calendar-service-mock";
+import { randomString } from "test/utils/randomString";
 
 // Mock the BuildIcsFeedCalendarService factory function
-const mockBuildIcsFeedCalendarService = jest.fn();
+const mockBuildIcsFeedCalendarService: jest.Mock = jest.fn();
 jest.mock("@calcom/platform-libraries/app-store", () => {
   const actual = jest.requireActual("@calcom/platform-libraries/app-store");
   return {
@@ -35,21 +35,27 @@ jest.mock("@calcom/platform-libraries/app-store", () => {
 
 import { AppModule } from "@/app.module";
 import { bootstrap } from "@/bootstrap";
-import { CreateIcsFeedOutput, CreateIcsFeedOutputResponseDto } from "@/platform/calendars/input/create-ics.output";
-import { ConnectedCalendarsData } from "@/platform/calendars/outputs/connected-calendars.output";
-import { DeletedCalendarCredentialsOutputResponseDto } from "@/platform/calendars/outputs/delete-calendar-credentials.output";
-import { CalendarsService } from "@/platform/calendars/services/calendars.service";
 import { HttpExceptionFilter } from "@/filters/http-exception.filter";
 import { PrismaExceptionFilter } from "@/filters/prisma-exception.filter";
 import { PermissionsGuard } from "@/modules/auth/guards/permissions/permissions.guard";
-import { PrismaWriteService } from "@/modules/prisma/prisma-write.service";
 import { TokensModule } from "@/modules/tokens/tokens.module";
 import { UsersModule } from "@/modules/users/users.module";
+import {
+  CreateIcsFeedOutput,
+  CreateIcsFeedOutputResponseDto,
+} from "@/platform/calendars/input/create-ics.output";
+import { ConnectedCalendarsData } from "@/platform/calendars/outputs/connected-calendars.output";
+import { DeletedCalendarCredentialsOutputResponseDto } from "@/platform/calendars/outputs/delete-calendar-credentials.output";
+import { CalendarsService } from "@/platform/calendars/services/calendars.service";
+import { GoogleCalendarService } from "@/platform/calendars/services/gcal.service";
 
 const CLIENT_REDIRECT_URI = "http://localhost:5555";
 
+let describeCalendars: typeof describe = describe;
 // biome-ignore lint/style/noProcessEnv: Need to check env availability before test setup
-const describeCalendars = process.env.GOOGLE_API_CREDENTIALS ? describe : describe.skip;
+if (!process.env.GOOGLE_API_CREDENTIALS) {
+  describeCalendars = describe.skip;
+}
 
 describeCalendars("Platform Calendars Endpoints", () => {
   let app: INestApplication;
@@ -67,8 +73,6 @@ describeCalendars("Platform Calendars Endpoints", () => {
   let accessTokenSecret: string;
   let refreshTokenSecret: string;
   let icsCalendarCredentials: CreateIcsFeedOutput;
-  let prismaWriteService: PrismaWriteService;
-  let previousGoogleCalendarApp: Pick<App, "enabled" | "keys"> | null;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -90,18 +94,6 @@ describeCalendars("Platform Calendars Endpoints", () => {
     teamRepositoryFixture = new TeamRepositoryFixture(moduleRef);
     tokensRepositoryFixture = new TokensRepositoryFixture(moduleRef);
     credentialsRepositoryFixture = new CredentialsRepositoryFixture(moduleRef);
-    prismaWriteService = moduleRef.get(PrismaWriteService);
-    previousGoogleCalendarApp = await prismaWriteService.prisma.app.findUnique({
-      where: { slug: "google-calendar" },
-      select: { enabled: true, keys: true },
-    });
-    await prismaWriteService.prisma.app.update({
-      where: { slug: "google-calendar" },
-      data: {
-        enabled: true,
-        keys: getGoogleCalendarAppKeys(),
-      },
-    });
     organization = await teamRepositoryFixture.create({ name: `calendars-organization-${randomString()}` });
     oAuthClient = await createOAuthClient(organization.id);
     user = await userRepositoryFixture.createOAuthManagedUser(
@@ -113,11 +105,16 @@ describeCalendars("Platform Calendars Endpoints", () => {
     refreshTokenSecret = tokens.refreshToken;
     await app.init();
     jest
+      .spyOn(GoogleCalendarService.prototype, "getOAuthClient")
+      .mockImplementation(async (redirectUri: string) => {
+        return new OAuth2Client("test-client-id", "test-client-secret", redirectUri);
+      });
+    jest
       .spyOn(CalendarsService.prototype, "getCalendars")
       .mockImplementation(CalendarsServiceMock.prototype.getCalendars);
   });
 
-  async function createOAuthClient(organizationId: number) {
+  async function createOAuthClient(organizationId: number): Promise<PlatformOAuthClient> {
     const data = {
       logo: "logo-url",
       name: "name",
@@ -128,17 +125,6 @@ describeCalendars("Platform Calendars Endpoints", () => {
 
     const client = await oauthClientRepositoryFixture.create(organizationId, data, secret);
     return client;
-  }
-
-  function getGoogleCalendarAppKeys() {
-    // biome-ignore lint/style/noProcessEnv: This e2e spec runs only when the Google OAuth fixture secret is present.
-    const credentials = JSON.parse(process.env.GOOGLE_API_CREDENTIALS || "{}");
-    const keys = credentials.web ?? credentials;
-    return {
-      client_id: keys.client_id,
-      client_secret: keys.client_secret,
-      redirect_uris: keys.redirect_uris,
-    };
   }
 
   it("should be defined", () => {
@@ -411,25 +397,27 @@ describeCalendars("Platform Calendars Endpoints", () => {
   });
 
   afterAll(async () => {
-    await Promise.allSettled([
-      oAuthClient ? oauthClientRepositoryFixture.delete(oAuthClient.id) : Promise.resolve(),
-      organization ? teamRepositoryFixture.delete(organization.id) : Promise.resolve(),
-      office365Credentials ? credentialsRepositoryFixture.delete(office365Credentials.id) : Promise.resolve(),
-      googleCalendarCredentials
-        ? credentialsRepositoryFixture.delete(googleCalendarCredentials.id)
-        : Promise.resolve(),
-      icsCalendarCredentials ? credentialsRepositoryFixture.delete(icsCalendarCredentials.id) : Promise.resolve(),
-      user ? userRepositoryFixture.deleteByEmail(user.email) : Promise.resolve(),
-      previousGoogleCalendarApp
-        ? prismaWriteService.prisma.app.update({
-            where: { slug: "google-calendar" },
-            data: {
-              enabled: previousGoogleCalendarApp.enabled,
-              keys: previousGoogleCalendarApp.keys as Prisma.InputJsonValue,
-            },
-          })
-        : Promise.resolve(),
-    ]);
+    const cleanupTasks: Promise<unknown>[] = [];
+    if (oAuthClient) {
+      cleanupTasks.push(oauthClientRepositoryFixture.delete(oAuthClient.id));
+    }
+    if (organization) {
+      cleanupTasks.push(teamRepositoryFixture.delete(organization.id));
+    }
+    if (office365Credentials) {
+      cleanupTasks.push(credentialsRepositoryFixture.delete(office365Credentials.id));
+    }
+    if (googleCalendarCredentials) {
+      cleanupTasks.push(credentialsRepositoryFixture.delete(googleCalendarCredentials.id));
+    }
+    if (icsCalendarCredentials) {
+      cleanupTasks.push(credentialsRepositoryFixture.delete(icsCalendarCredentials.id));
+    }
+    if (user) {
+      cleanupTasks.push(userRepositoryFixture.deleteByEmail(user.email));
+    }
+    await Promise.allSettled(cleanupTasks);
     await app?.close();
+    jest.restoreAllMocks();
   });
 });

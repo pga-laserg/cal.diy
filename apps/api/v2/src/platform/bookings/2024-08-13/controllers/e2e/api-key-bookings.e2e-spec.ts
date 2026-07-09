@@ -27,15 +27,15 @@ import { randomString } from "test/utils/randomString";
 import { withApiAuth } from "test/utils/withApiAuth";
 import { AppModule } from "@/app.module";
 import { bootstrap } from "@/bootstrap";
+import { PermissionsGuard } from "@/modules/auth/guards/permissions/permissions.guard";
+import { PrismaModule } from "@/modules/prisma/prisma.module";
+import { UsersModule } from "@/modules/users/users.module";
 import { CancelBookingOutput_2024_08_13 } from "@/platform/bookings/2024-08-13/outputs/cancel-booking.output";
 import { CreateBookingOutput_2024_08_13 } from "@/platform/bookings/2024-08-13/outputs/create-booking.output";
 import { RescheduleBookingOutput_2024_08_13 } from "@/platform/bookings/2024-08-13/outputs/reschedule-booking.output";
 import { CreateScheduleInput_2024_04_15 } from "@/platform/schedules/schedules_2024_04_15/inputs/create-schedule.input";
 import { SchedulesModule_2024_04_15 } from "@/platform/schedules/schedules_2024_04_15/schedules.module";
 import { SchedulesService_2024_04_15 } from "@/platform/schedules/schedules_2024_04_15/services/schedules.service";
-import { PermissionsGuard } from "@/modules/auth/guards/permissions/permissions.guard";
-import { PrismaModule } from "@/modules/prisma/prisma.module";
-import { UsersModule } from "@/modules/users/users.module";
 
 jest.spyOn(AttendeeScheduledEmail.prototype as any, "getHtml").mockImplementation(async function () {
   return "<html><body>Mocked Email Content</body></html>";
@@ -79,6 +79,8 @@ describe("Bookings Endpoints 2024-08-13", () => {
 
     let createdBooking: BookingOutput_2024_08_13;
     let rescheduledBooking: BookingOutput_2024_08_13;
+    // biome-ignore lint/style/noProcessEnv: This spec must use the same API key prefix as the running test app.
+    const apiKeyPrefix = process.env.API_KEY_PREFIX ?? "cal_test_";
 
     beforeAll(async () => {
       const moduleRef = await withApiAuth(
@@ -144,7 +146,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
         eventTypeId,
         attendee: {
           name: "Mr Key",
-          email: "mr_key@gmail.com",
+          email: `mr_key-${randomString(10)}@gmail.com`,
           timeZone: "Europe/Rome",
           language: "it",
         },
@@ -154,7 +156,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
       return request(app.getHttpServer())
         .post("/v2/bookings")
         .send(body)
-        .set({ Authorization: `Bearer cal_test_${apiKeyString}` })
+        .set({ Authorization: `Bearer ${apiKeyPrefix}${apiKeyString}` })
         .set(CAL_API_VERSION_HEADER, VERSION_2024_08_13)
         .expect(201)
         .then(async (response) => {
@@ -203,7 +205,7 @@ describe("Bookings Endpoints 2024-08-13", () => {
       return request(app.getHttpServer())
         .post(`/v2/bookings/${createdBooking.uid}/reschedule`)
         .send(body)
-        .set({ Authorization: `Bearer cal_test_${apiKeyString}` })
+        .set({ Authorization: `Bearer ${apiKeyPrefix}${apiKeyString}` })
         .set(CAL_API_VERSION_HEADER, VERSION_2024_08_13)
         .expect(201)
         .then(async (response) => {
@@ -283,15 +285,21 @@ describe("Bookings Endpoints 2024-08-13", () => {
         });
     });
 
-    function responseDataIsBooking(data: any): data is BookingOutput_2024_08_13 {
-      return !Array.isArray(data) && typeof data === "object" && data && "id" in data;
+    function responseDataIsBooking(data: unknown): data is BookingOutput_2024_08_13 {
+      return !Array.isArray(data) && typeof data === "object" && data !== null && "id" in data;
     }
 
     afterAll(async () => {
-      await teamRepositoryFixture.delete(organization.id);
-      await userRepositoryFixture.deleteByEmail(user.email);
-      await bookingsRepositoryFixture.deleteAllBookings(user.id, user.email);
-      await app.close();
+      const cleanupTasks: Promise<unknown>[] = [];
+      if (user) {
+        cleanupTasks.push(bookingsRepositoryFixture.deleteAllBookings(user.id, user.email));
+        cleanupTasks.push(userRepositoryFixture.deleteByEmail(user.email));
+      }
+      if (organization) {
+        cleanupTasks.push(teamRepositoryFixture.delete(organization.id));
+      }
+      await Promise.allSettled(cleanupTasks);
+      await app?.close();
     });
   });
 });
