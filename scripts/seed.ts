@@ -1027,6 +1027,20 @@ async function main() {
     });
   }
 
+  const companionClientId = process.env.SEED_COMPANION_OAUTH_CLIENT_ID;
+
+  if (companionClientId) {
+    await createOAuthClientForUser(admin.id, {
+      clientId: companionClientId,
+      name: process.env.SEED_COMPANION_OAUTH_CLIENT_NAME || "AgendaCon Companion",
+      purpose: "AgendaCon Companion mobile app OAuth",
+      redirectUri: process.env.SEED_COMPANION_OAUTH_REDIRECT_URI || "expo-wxt-app://oauth/callback",
+      websiteUrl: process.env.SEED_COMPANION_OAUTH_WEBSITE_URL || WEBAPP_URL,
+      enablePkce: true,
+      isTrusted: process.env.SEED_COMPANION_OAUTH_IS_TRUSTED === "true",
+    });
+  }
+
   if (process.env.E2E_TEST_CALCOM_QA_EMAIL && process.env.E2E_TEST_CALCOM_QA_PASSWORD) {
     await createUserAndEventType({
       user: {

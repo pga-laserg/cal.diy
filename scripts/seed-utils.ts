@@ -188,18 +188,27 @@ export async function createUserAndEventType({
 
 type OAuthClientInput = {
   clientId: string;
-  clientSecret: string;
+  clientSecret?: string;
   name: string;
   purpose: string;
   redirectUri: string;
   websiteUrl: string;
   enablePkce: boolean;
+  isTrusted?: boolean;
 };
 
 export async function createOAuthClientForUser(userId: number, oAuthClient: OAuthClientInput) {
   const { enablePkce, ...restOfOAuthClient } = oAuthClient;
-  await prisma.oAuthClient.create({
-    data: {
+  await prisma.oAuthClient.upsert({
+    where: {
+      clientId: oAuthClient.clientId,
+    },
+    create: {
+      userId,
+      ...restOfOAuthClient,
+      clientType: enablePkce ? "PUBLIC" : "CONFIDENTIAL",
+    },
+    update: {
       userId,
       ...restOfOAuthClient,
       clientType: enablePkce ? "PUBLIC" : "CONFIDENTIAL",
