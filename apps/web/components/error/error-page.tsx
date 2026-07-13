@@ -4,6 +4,7 @@ import { useLayoutEffect } from "react";
 
 import "@calcom/embed-core/src/embed-iframe";
 import { HttpError } from "@calcom/lib/http-error";
+import { useLocale } from "@calcom/lib/hooks/useLocale";
 import { Button } from "@calcom/ui/components/button";
 
 type Props = {
@@ -55,6 +56,8 @@ const ErrorDebugPanel: React.FC<{ error: Props["error"]; children?: never }> = (
 
 export const ErrorPage: React.FC<Props> = (props) => {
   const { message, statusCode, error, displayDebug } = { ...defaultProps, ...props };
+  const { t } = useLocale();
+  const supportEmail = process.env.NEXT_PUBLIC_SUPPORT_EMAIL;
   const handleReset = () => {
     window.location.reload();
     props.reset?.();
@@ -73,25 +76,26 @@ export const ErrorPage: React.FC<Props> = (props) => {
         <div className="rtl: bg-default m-auto rounded-md p-10 text-right ltr:text-left">
           <h1 className="font-cal text-emphasis text-6xl">{statusCode}</h1>
           <h2 className="text-emphasis mt-6 max-w-2xl text-2xl font-medium">
-            It&apos;s not you, it&apos;s us.
+            {t("something_went_wrong")}
           </h2>
           <p className="text-default mb-6 mt-4 max-w-2xl text-sm">
-            Something went wrong on our end. Get in touch with our support team, and we&apos;ll get it fixed
-            right away for you.
+            {t("something_went_wrong_on_our_end")}
           </p>
 
           <div className="mb-8 flex flex-col">
-            <p className="text-default mb-4 max-w-2xl text-sm">
-              Please provide the following text when contacting support to better help you:
-            </p>
+            {supportEmail && (
+              <p className="text-default mb-4 max-w-2xl text-sm">
+                {t("please_try_again_and_contact_us")}
+              </p>
+            )}
             <pre className="bg-emphasis text-emphasis w-full max-w-2xl whitespace-normal wrap-break-word rounded-md p-4">
               {message}
             </pre>
           </div>
 
-          <Button href="mailto:support@cal.com">Contact Support</Button>
+          {supportEmail && <Button href={`mailto:${supportEmail}`}>{t("contact_support")}</Button>}
           <Button color="secondary" className="ml-2" onClick={handleReset}>
-            Try again
+            {t("try_again")}
           </Button>
         </div>
       </div>

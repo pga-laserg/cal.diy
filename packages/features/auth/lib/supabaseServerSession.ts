@@ -1,7 +1,9 @@
+import { createHash } from "node:crypto";
 import process from "node:process";
 import prisma from "@calcom/prisma";
 import { createServerClient } from "@supabase/ssr";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
+import { LRUCache } from "lru-cache";
 import type { GetServerSidePropsContext, NextApiRequest } from "next";
 
 type RequestLike = (NextApiRequest | GetServerSidePropsContext["req"]) & {
@@ -20,6 +22,14 @@ type SupabaseConfig = {
   publishableKey: string;
   url: string;
 };
+
+// `getUser()` validates the access token with Supabase over the network. A single
+// dashboard render can invoke it through several tRPC procedures, so cache the
+// resolved identity briefly without retaining the raw session cookie.
+const SESSION_IDENTITY_CACHE: LRUCache<string, SupabaseSessionIdentity> = new LRUCache({
+  max: 1_000,
+  ttl: 30_000,
+});
 
 function getSupabaseConfig(): SupabaseConfig | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
@@ -67,6 +77,18 @@ function getRequestCookies(req: RequestLike): Record<string, string | undefined>
   };
 }
 
+function getSessionCacheKey(cookies: Record<string, string | undefined>): string | null {
+  const authCookieEntries = Object.entries(cookies)
+    .filter(([name, value]) => name.includes("-auth-token") && value)
+    .sort(([left], [right]) => left.localeCompare(right));
+
+  if (authCookieEntries.length === 0) {
+    return null;
+  }
+
+  return createHash("sha256").update(JSON.stringify(authCookieEntries)).digest("hex");
+}
+
 async function resolveCalUserId(supabaseUser: SupabaseUser): Promise<number | null> {
   try {
     const rows = await prisma.$queryRaw<Array<{ id: bigint | number }>>`
@@ -95,6 +117,17 @@ export async function getSupabaseSessionIdentity(req: RequestLike): Promise<Supa
   }
 
   const cookies = getRequestCookies(req);
+  const cacheKey = getSessionCacheKey(cookies);
+
+  if (!cacheKey) {
+    return null;
+  }
+
+  const cachedIdentity = SESSION_IDENTITY_CACHE.get(cacheKey);
+  if (cachedIdentity) {
+    return cachedIdentity;
+  }
+
   const supabase = createServerClient(config.url, config.publishableKey, {
     cookies: {
       getAll(): Array<{ name: string; value: string }> {
@@ -125,13 +158,17 @@ export async function getSupabaseSessionIdentity(req: RequestLike): Promise<Supa
     expiresAt = new Date(sessionData.session.expires_at * 1000).toISOString();
   }
 
-  return {
+  const identity = {
     cacheKey: `supabase:${supabaseUser.id}:${sessionData.session?.expires_at ?? "session"}`,
     calUserId,
     email: supabaseUser.email,
     expires: expiresAt,
     supabaseUserId: supabaseUser.id,
   };
+
+  SESSION_IDENTITY_CACHE.set(cacheKey, identity);
+
+  return identity;
 }
 
 export type { SupabaseSessionIdentity };

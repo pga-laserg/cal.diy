@@ -10,6 +10,10 @@ export class VariableNode extends TextNode {
     return new VariableNode(node.__text, node.__key);
   }
 
+  static importJSON(serializedNode: SerializedTextNode): VariableNode {
+    return $createVariableNode(serializedNode.text);
+  }
+
   constructor(text: string, key?: NodeKey) {
     super(text, key);
   }
@@ -42,7 +46,7 @@ export class VariableNode extends TextNode {
   }
 }
 
-export function $createVariableNode(text = ""): VariableNode {
+export function $createVariableNode(text: string = ""): VariableNode {
   const node = new VariableNode(text);
   node.setMode("segmented").toggleDirectionless();
   return $applyNodeReplacement(node);

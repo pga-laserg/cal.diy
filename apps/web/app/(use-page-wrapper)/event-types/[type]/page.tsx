@@ -3,9 +3,8 @@ import { eventTypesRouter } from "@calcom/trpc/server/routers/viewer/eventTypes/
 import { EventTypeWebWrapper } from "@calcom/web/modules/event-types/components/EventTypeWebWrapper";
 import { buildLegacyRequest } from "@lib/buildLegacyCtx";
 import { createRouterCaller, getTRPCContext } from "app/_trpc/context";
-import type { PageProps, ReadonlyHeaders, ReadonlyRequestCookies } from "app/_types";
+import type { PageProps } from "app/_types";
 import { _generateMetadata } from "app/_utils";
-import { unstable_cache } from "next/cache";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -29,15 +28,6 @@ export const generateMetadata = async () => {
   );
 };
 
-const getCachedEventType = unstable_cache(
-  async (eventTypeId: number, headers: ReadonlyHeaders, cookies: ReadonlyRequestCookies) => {
-    const caller = await createRouterCaller(eventTypesRouter, await getTRPCContext(headers, cookies));
-    return await caller.get({ id: eventTypeId });
-  },
-  ["viewer.eventTypes.get"],
-  { revalidate: 3600 } // Cache for 1 hour
-);
-
 const ServerPage = async ({ params }: PageProps) => {
   const session = await getServerSession({ req: buildLegacyRequest(await headers(), await cookies()) });
   if (!session?.user?.id) {
@@ -52,7 +42,10 @@ const ServerPage = async ({ params }: PageProps) => {
   const _headers = await headers();
   const _cookies = await cookies();
 
-  const data = await getCachedEventType(eventTypeId, _headers, _cookies);
+  // Event type settings are edited from this page, so always read the current
+  // user-scoped record instead of serving a stale server-cache entry.
+  const caller = await createRouterCaller(eventTypesRouter, await getTRPCContext(_headers, _cookies));
+  const data = await caller.get({ id: eventTypeId });
   if (!data?.eventType) {
     throw new Error("This event type does not exist");
   }

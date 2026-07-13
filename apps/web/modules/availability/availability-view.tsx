@@ -51,8 +51,9 @@ export function AvailabilityList({ availabilities }: AvailabilityListProps) {
     onSettled: () => {
       utils.viewer.availability.list.invalidate();
     },
-    onSuccess: () => {
-      revalidateAvailabilityList();
+    onSuccess: async () => {
+      await revalidateAvailabilityList();
+      router.refresh();
       showToast(t("schedule_deleted_successfully"), "success");
     },
   });
@@ -60,7 +61,7 @@ export function AvailabilityList({ availabilities }: AvailabilityListProps) {
   const updateMutation = trpc.viewer.availability.schedule.update.useMutation({
     onSuccess: async ({ schedule }) => {
       await utils.viewer.availability.list.invalidate();
-      revalidateAvailabilityList();
+      await revalidateAvailabilityList();
       showToast(
         t("availability_updated_successfully", {
           scheduleName: schedule.name,
@@ -68,6 +69,7 @@ export function AvailabilityList({ availabilities }: AvailabilityListProps) {
         "success"
       );
       setBulkUpdateModal(true);
+      router.refresh();
     },
     onError: (err) => {
       if (err instanceof HttpError) {

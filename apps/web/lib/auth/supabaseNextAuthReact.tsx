@@ -1,6 +1,5 @@
 "use client";
 
-import process from "node:process";
 import { ErrorCode } from "@calcom/features/auth/lib/ErrorCode";
 import { createBrowserClient } from "@supabase/ssr";
 import type { Provider, SupabaseClient } from "@supabase/supabase-js";

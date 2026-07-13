@@ -1,5 +1,7 @@
 "use client";
 
+import { createInstance } from "i18next";
+import { I18nextProvider, initReactI18next } from "react-i18next";
 import { createContext, useMemo } from "react";
 import type { ReactNode } from "react";
 
@@ -29,5 +31,21 @@ export function CustomI18nProvider({
     [locale, ns]
   );
 
-  return <CustomI18nContext.Provider value={value}>{children}</CustomI18nContext.Provider>;
+  const i18n = useMemo(() => {
+    const instance = createInstance();
+    void instance.use(initReactI18next).init({
+      lng: locale,
+      fallbackLng: "en",
+      resources: { [locale]: { [ns]: translations } },
+      interpolation: { escapeValue: false },
+      react: { useSuspense: false },
+    });
+    return instance;
+  }, [locale, ns, translations]);
+
+  return (
+    <CustomI18nContext.Provider value={value}>
+      <I18nextProvider i18n={i18n}>{children}</I18nextProvider>
+    </CustomI18nContext.Provider>
+  );
 }

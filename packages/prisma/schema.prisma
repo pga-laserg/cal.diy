@@ -9,7 +9,7 @@ datasource db {
 
 generator client {
   provider            = "prisma-client"
-  previewFeatures     = ["views"]
+  previewFeatures     = ["views", "relationJoins"]
   output              = "./generated/prisma"
   engineType          = "client"
   moduleFormat        = "cjs"

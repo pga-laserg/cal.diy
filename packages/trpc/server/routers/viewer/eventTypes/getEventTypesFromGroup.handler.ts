@@ -1,15 +1,12 @@
 import { EventTypeRepository } from "@calcom/features/eventtypes/repositories/eventTypeRepository";
 import { hasFilter } from "@calcom/features/filters/lib/hasFilter";
 import { checkRateLimitAndThrowError } from "@calcom/lib/checkRateLimitAndThrowError";
-import logger from "@calcom/lib/logger";
 import type { PrismaClient } from "@calcom/prisma";
 import { prisma } from "@calcom/prisma";
 import type { Prisma } from "@calcom/prisma/client";
 import type { TrpcSessionUser } from "../../../types";
 import type { TGetEventTypesFromGroupSchema } from "./getByViewer.schema";
-import { mapEventType } from "./util";
-
-const log = logger.getSubLogger({ prefix: ["getEventTypesFromGroup"] });
+import { mapEventTypes } from "./util";
 
 type GetByViewerOptions = {
   ctx: {
@@ -20,7 +17,7 @@ type GetByViewerOptions = {
 };
 
 type EventType = Awaited<ReturnType<EventTypeRepository["findAllByUpId"]>>[number];
-type MappedEventType = Awaited<ReturnType<typeof mapEventType>>;
+type MappedEventType = Awaited<ReturnType<typeof mapEventTypes>>[number];
 type MappedEventTypeWithHostFlag = MappedEventType & { isCurrentUserHost: boolean };
 
 export const getEventTypesFromGroup = async ({
@@ -150,7 +147,7 @@ export const getEventTypesFromGroup = async ({
     nextCursor = nextItem?.id;
   }
 
-  const mappedEventTypes: MappedEventType[] = await Promise.all(eventTypes.map(mapEventType));
+  const mappedEventTypes: MappedEventType[] = await mapEventTypes(eventTypes);
 
   const eventTypeIds = mappedEventTypes.map((et) => et.id);
   const userHostEntries = await prisma.host.findMany({

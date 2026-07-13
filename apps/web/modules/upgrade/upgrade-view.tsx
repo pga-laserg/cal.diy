@@ -17,6 +17,7 @@ export type OrgUpgradeBannerProps = {
 
 export default function UpgradePage() {
   const { t } = useLocale();
+  const supportEmail = process.env.NEXT_PUBLIC_SUPPORT_EMAIL;
 
   const router = useRouter();
   const publishOrgMutation = { mutate: (..._args: unknown[]) => {}, mutateAsync: async () => ({}), isPending: false };
@@ -47,7 +48,9 @@ export default function UpgradePage() {
             headline={t("you_are_all_set")}
             description={t("you_are_all_set_description")}
             Icon="circle-check"
-            buttonRaw={<Button href="mailto:support@cal.com">{t("contact_support")}</Button>}
+            buttonRaw={
+              supportEmail ? <Button href={`mailto:${supportEmail}`}>{t("contact_support")}</Button> : undefined
+            }
           />
         )}
       </div>

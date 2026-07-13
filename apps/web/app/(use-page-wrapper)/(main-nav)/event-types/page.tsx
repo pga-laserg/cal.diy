@@ -1,46 +1,15 @@
 import { getServerSession } from "@calcom/features/auth/lib/getServerSession";
 import { checkOnboardingRedirect } from "@calcom/features/auth/lib/onboardingUtils";
 import { getTeamsFiltersFromQuery } from "@calcom/features/filters/lib/getTeamsFiltersFromQuery";
-import type { RouterOutputs } from "@calcom/trpc/react";
 import { eventTypesRouter } from "@calcom/trpc/server/routers/viewer/eventTypes/_router";
 import { buildLegacyRequest } from "@lib/buildLegacyCtx";
 import { createRouterCaller, getTRPCContext } from "app/_trpc/context";
-import type { PageProps, ReadonlyHeaders, ReadonlyRequestCookies } from "app/_types";
+import type { PageProps } from "app/_types";
 import { _generateMetadata } from "app/_utils";
-import { unstable_cache } from "next/cache";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import type { ReactElement } from "react";
-
 import { EventTypesWrapper } from "./EventTypesWrapper";
-
-const getCachedEventGroups: (
-  headers: ReadonlyHeaders,
-  cookies: ReadonlyRequestCookies,
-  filters?: {
-    teamIds?: number[] | undefined;
-    userIds?: number[] | undefined;
-    upIds?: string[] | undefined;
-  }
-) => Promise<RouterOutputs["viewer"]["eventTypes"]["getUserEventGroups"]> = unstable_cache(
-  async (
-    headers: ReadonlyHeaders,
-    cookies: ReadonlyRequestCookies,
-    filters?: {
-      teamIds?: number[] | undefined;
-      userIds?: number[] | undefined;
-      upIds?: string[] | undefined;
-    }
-  ): Promise<RouterOutputs["viewer"]["eventTypes"]["getUserEventGroups"]> => {
-    const eventTypesCaller = await createRouterCaller(
-      eventTypesRouter,
-      await getTRPCContext(headers, cookies)
-    );
-    return await eventTypesCaller.getUserEventGroups({ filters });
-  },
-  ["viewer.eventTypes.getUserEventGroups"],
-  { revalidate: 3600 } // seconds
-);
 
 const Page = async ({ searchParams }: PageProps): Promise<ReactElement> => {
   const _searchParams = await searchParams;
@@ -54,19 +23,27 @@ const Page = async ({ searchParams }: PageProps): Promise<ReactElement> => {
     return redirect("/auth/login");
   }
 
-  // Check if user needs onboarding and redirect before fetching event types data
-  // Use organizationId from session profile if available to avoid extra query
-  const organizationId = session.user.profile?.organizationId ?? null;
-  const onboardingPath = await checkOnboardingRedirect(session.user.id, {
-    checkEmailVerification: true,
-    organizationId,
-  });
-  if (onboardingPath) {
-    return redirect(onboardingPath);
+  // Completed users cannot be redirected by the onboarding flow. Avoid its
+  // extra user and feature-flag queries on every authenticated dashboard load.
+  if (!session.user.completedOnboarding) {
+    const organizationId = session.user.profile?.organizationId ?? null;
+    const onboardingPath = await checkOnboardingRedirect(session.user.id, {
+      checkEmailVerification: true,
+      organizationId,
+    });
+    if (onboardingPath) {
+      return redirect(onboardingPath);
+    }
   }
 
   const filters = getTeamsFiltersFromQuery(_searchParams);
-  const userEventGroupsData = await getCachedEventGroups(_headers, _cookies, filters);
+  // This is authenticated, user-scoped data. Fetch it per request so changes made
+  // in the dashboard cannot remain hidden behind a shared server cache.
+  const eventTypesCaller = await createRouterCaller(
+    eventTypesRouter,
+    await getTRPCContext(_headers, _cookies)
+  );
+  const userEventGroupsData = await eventTypesCaller.getUserEventGroups({ filters });
 
   return <EventTypesWrapper userEventGroupsData={userEventGroupsData} user={session.user} />;
 };

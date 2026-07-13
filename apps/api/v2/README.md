@@ -42,10 +42,12 @@ For AgendaCon's local port contract, use `yarn dev:local`. It loads the reposito
 
 Companion calls API v2 directly with a Supabase access token. The legacy Cal OAuth browser flow is not part of the first-party mobile path.
 
-Set `SUPABASE_ACCESS_TOKEN` to a signed-in user's Supabase Auth session JWT (not a Supabase personal access token) and run `yarn smoke:supabase-auth` to verify the read-only Companion surface. It checks profile, event types, schedules, bookings, conferencing, and calendars without writing the token or user data to disk. When `127.0.0.1:5555` is occupied by an emulator, point the smoke test at the Mac's LAN API address instead:
+`SUPABASE_ACCESS_TOKEN` is reserved for the Supabase CLI/management token. Keep it server-side and never expose it to the web app or Companion.
+
+Set `SUPABASE_AUTH_SMOKE_TOKEN` to a signed-in user's Supabase Auth session JWT (not a Supabase personal access token) and run `yarn smoke:supabase-auth` to verify the read-only Companion surface. It checks profile, event types, schedules, bookings, conferencing, and calendars without writing the token or user data to disk. When `127.0.0.1:5555` is occupied by an emulator, point the smoke test at the Mac's LAN API address instead:
 
 ```bash
-SUPABASE_AUTH_SMOKE_API_URL=http://<mac-lan-ip>:5555/v2 yarn smoke:supabase-auth
+SUPABASE_AUTH_SMOKE_TOKEN=<signed-in-user-session-jwt> SUPABASE_AUTH_SMOKE_API_URL=http://<mac-lan-ip>:5555/v2 yarn smoke:supabase-auth
 ```
 
 Start api v2 using:

@@ -1,5 +1,4 @@
-import { Ratelimit, type LimitOptions, type RatelimitResponse } from "@unkey/ratelimit";
-
+import { type LimitOptions, Ratelimit, type RatelimitResponse } from "@unkey/ratelimit";
 import { isIpInBanListString } from "./getIP";
 import logger from "./logger";
 
@@ -34,7 +33,9 @@ export function rateLimiter() {
   const { UNKEY_ROOT_KEY } = process.env;
 
   if (!UNKEY_ROOT_KEY) {
-    if (!warned) {
+    // Local development intentionally runs without Unkey. Keep the warning for
+    // deployments, where disabling rate limits would be a security concern.
+    if (!warned && process.env.NODE_ENV === "production") {
       log.warn("Disabled because the UNKEY_ROOT_KEY environment variable was not found.");
       warned = true;
     }

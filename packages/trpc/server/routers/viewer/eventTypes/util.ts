@@ -1,4 +1,5 @@
 import type { EventTypeRepository } from "@calcom/features/eventtypes/repositories/eventTypeRepository";
+import { ProfileRepository } from "@calcom/features/profile/repositories/ProfileRepository";
 import { UserRepository } from "@calcom/features/users/repositories/UserRepository";
 import { markdownToSafeHTML } from "@calcom/lib/markdownToSafeHTML";
 import prisma from "@calcom/prisma";
@@ -20,6 +21,56 @@ class PermissionCheckService {
 }
 
 type EventType = Awaited<ReturnType<EventTypeRepository["findAllByUpId"]>>[number];
+
+type EventTypeUser = EventType["users"][number];
+type EnrichedEventTypeUser = Awaited<ReturnType<UserRepository["enrichUserWithItsProfile"]>>;
+
+function collectEventTypeUsers(eventTypes: EventType[]): EventTypeUser[] {
+  return eventTypes.flatMap((eventType) => [
+    ...(eventType.hosts.length ? eventType.hosts.map((host) => host.user) : eventType.users),
+    ...eventType.children.flatMap((child) => child.users),
+  ]);
+}
+
+async function enrichEventTypeUsers(eventTypes: EventType[]): Promise<Map<number, EnrichedEventTypeUser>> {
+  const users = collectEventTypeUsers(eventTypes);
+  const uniqueUsers = [...new Map(users.map((user) => [user.id, user])).values()];
+
+  if (uniqueUsers.length === 0) {
+    return new Map();
+  }
+
+  const profiles = await ProfileRepository.findManyForUsers(uniqueUsers.map((user) => user.id));
+  const profileByUserId = new Map(profiles.map((profile) => [profile.userId, profile]));
+
+  return new Map(
+    uniqueUsers.map((user) => {
+      const profile = profileByUserId.get(user.id);
+      const isPlatformProfile = profile?.organization?.isPlatform;
+
+      if (!profile || isPlatformProfile) {
+        return [
+          user.id,
+          {
+            ...user,
+            nonProfileUsername: user.username,
+            profile: ProfileRepository.buildPersonalProfileFromUser({ user }),
+          },
+        ];
+      }
+
+      return [
+        user.id,
+        {
+          ...user,
+          username: profile.username,
+          nonProfileUsername: user.username,
+          profile,
+        },
+      ];
+    })
+  );
+}
 
 export const eventOwnerProcedure = authedProcedure
   .input(
@@ -306,14 +357,15 @@ export function ensureEmailOrPhoneNumberIsPresent(fields: TUpdateInputSchema["bo
   }
 }
 
-export const mapEventType = async (eventType: EventType) => ({
+export const mapEventType = async (
+  eventType: EventType,
+  enrichedUsers?: Map<number, EnrichedEventTypeUser>
+) => ({
   ...eventType,
   safeDescription: eventType?.description ? markdownToSafeHTML(eventType.description) : undefined,
   users: await Promise.all(
     (eventType?.hosts?.length ? eventType.hosts.map((host) => host.user) : eventType.users).map(async (u) =>
-      new UserRepository(prisma).enrichUserWithItsProfile({
-        user: u,
-      })
+      enrichedUsers?.get(u.id) ?? new UserRepository(prisma).enrichUserWithItsProfile({ user: u })
     )
   ),
   metadata: eventType.metadata ? EventTypeMetaDataSchema.parse(eventType.metadata) : null,
@@ -323,11 +375,14 @@ export const mapEventType = async (eventType: EventType) => ({
       users: await Promise.all(
         c.users.map(
           async (u) =>
-            await new UserRepository(prisma).enrichUserWithItsProfile({
-              user: u,
-            })
+            enrichedUsers?.get(u.id) ?? new UserRepository(prisma).enrichUserWithItsProfile({ user: u })
         )
       ),
     }))
   ),
 });
+
+export const mapEventTypes = async (eventTypes: EventType[]) => {
+  const enrichedUsers = await enrichEventTypeUsers(eventTypes);
+  return await Promise.all(eventTypes.map((eventType) => mapEventType(eventType, enrichedUsers)));
+};

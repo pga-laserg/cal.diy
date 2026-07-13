@@ -4,15 +4,15 @@ const dotenv = require("dotenv");
 dotenv.config({ path: path.resolve(__dirname, "../../../../.env") });
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
-const accessToken = process.env.SUPABASE_ACCESS_TOKEN;
+const accessToken = process.env.SUPABASE_AUTH_SMOKE_TOKEN;
 if (!accessToken) {
-  console.error("SUPABASE_ACCESS_TOKEN is required. The script never stores or prints it.");
+  console.error("SUPABASE_AUTH_SMOKE_TOKEN is required. The script never stores or prints it.");
   process.exit(1);
 }
 
 if (accessToken.split(".").length !== 3) {
   console.error(
-    "SUPABASE_ACCESS_TOKEN must be a Supabase Auth user session JWT, not a Supabase personal access token."
+    "SUPABASE_AUTH_SMOKE_TOKEN must be a Supabase Auth user session JWT, not a Supabase personal access token."
   );
   process.exit(1);
 }
