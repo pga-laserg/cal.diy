@@ -1,4 +1,5 @@
 import { getOrgUsernameFromEmail } from "@calcom/features/auth/signup/utils/getOrgUsernameFromEmail";
+import { isPrismaError } from "@calcom/lib/server/getServerErrorFromUnknown";
 import prisma from "@calcom/prisma";
 
 export const getUsernameForOrgMember = async ({
@@ -39,43 +40,80 @@ export const validateAndGetCorrectedUsernameAndEmail = async ({
   if (username.includes("+")) {
     return { isValid: false, username: undefined, email };
   }
+
+  const fallbackValidate = async () => {
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        ...(organizationId ? { organizationId } : {}),
+        OR: [
+          ...(!organizationId ? [{ username }] : []),
+          {
+            email,
+          },
+        ],
+      },
+      select: {
+        email: true,
+      },
+    });
+
+    let validatedUsername = username;
+    if (organizationId) {
+      validatedUsername = await getUsernameForOrgMember({
+        email,
+        orgAutoAcceptEmail,
+        isSignup,
+      });
+    }
+
+    return { isValid: !existingUser, username: validatedUsername, email: existingUser?.email };
+  };
+
   // There is an existingUser if, within an org context or not, the username matches
   // OR if the email matches AND either the email is verified
   // or both username and password are set
-  const existingUser = await prisma.user.findFirst({
-    where: {
-      ...(organizationId ? { organizationId } : {}),
-      OR: [
-        // When inviting to org, invited user gets created with username now, so in an org context we
-        // can't check for username as it will exist on signup
-        ...(!organizationId ? [{ username }] : [{}]),
-        {
-          AND: [
-            { email },
-            {
-              OR: [
-                { emailVerified: { not: null } },
-                { AND: [{ password: { isNot: null } }, { username: { not: null } }] },
-              ],
-            },
-          ],
-        },
-      ],
-    },
-    select: {
-      email: true,
-    },
-  });
-  let validatedUsername = username;
-  if (organizationId) {
-    validatedUsername = await getUsernameForOrgMember({
-      email,
-      orgAutoAcceptEmail,
-      isSignup,
+  try {
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        ...(organizationId ? { organizationId } : {}),
+        OR: [
+          // When inviting to org, invited user gets created with username now, so in an org context we
+          // can't check for username as it will exist on signup
+          ...(!organizationId ? [{ username }] : [{}]),
+          {
+            AND: [
+              { email },
+              {
+                OR: [
+                  { emailVerified: { not: null } },
+                  { AND: [{ password: { isNot: null } }, { username: { not: null } }] },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      select: {
+        email: true,
+      },
     });
-  }
+    let validatedUsername = username;
+    if (organizationId) {
+      validatedUsername = await getUsernameForOrgMember({
+        email,
+        orgAutoAcceptEmail,
+        isSignup,
+      });
+    }
 
-  return { isValid: !existingUser, username: validatedUsername, email: existingUser?.email };
+    return { isValid: !existingUser, username: validatedUsername, email: existingUser?.email };
+  } catch (error) {
+    if (!isPrismaError(error) || error.code !== "P2021") {
+      throw error;
+    }
+
+    return fallbackValidate();
+  }
 };
 
 export const validateAndGetCorrectedUsernameInTeam = async (

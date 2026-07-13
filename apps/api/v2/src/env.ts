@@ -43,6 +43,8 @@ export type Environment = {
   USE_POOL: string;
   VERCEL: string;
   ENABLE_ASYNC_TASKER: string;
+  SUPABASE_URL?: string;
+  SUPABASE_PUBLISHABLE_KEY?: string;
 };
 
 export const getEnv = <K extends keyof Environment>(key: K, fallback?: Environment[K]): Environment[K] => {

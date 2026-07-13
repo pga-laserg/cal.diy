@@ -20,6 +20,7 @@ import {
   generateCsvRawForMembersTable,
   generateHeaderFromReactTable,
 } from "@calcom/web/modules/users/lib/UserListTableUtils";
+import { useSession } from "@lib/auth/supabaseNextAuthReact";
 import { keepPreviousData } from "@tanstack/react-query";
 import {
   type CellContext,
@@ -30,7 +31,6 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import { usePathname } from "next/navigation";
-import { useSession } from "next-auth/react";
 import { parseAsBoolean, useQueryState } from "nuqs";
 import posthog from "posthog-js";
 import { useMemo, useReducer, useState } from "react";

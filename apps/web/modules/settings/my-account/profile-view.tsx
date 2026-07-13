@@ -1,5 +1,6 @@
 "use client";
 
+import process from "node:process";
 import { ErrorCode } from "@calcom/features/auth/lib/ErrorCode";
 import { Dialog } from "@calcom/features/components/controlled-dialog";
 import SettingsHeader from "@calcom/features/settings/appDir/SettingsHeader";
@@ -30,11 +31,11 @@ import SecondaryEmailModal from "@components/settings/SecondaryEmailModal";
 import { UsernameAvailabilityField } from "@components/ui/UsernameAvailability";
 import { InfoIcon } from "@coss/ui/icons";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { signOut, useSession } from "@lib/auth/supabaseNextAuthReact";
 import type { TRPCClientErrorLike } from "@trpc/client";
 import { revalidateSettingsProfile } from "app/cache/path/settings/my-account";
 // eslint-disable-next-line no-restricted-imports
 import { get, pick } from "lodash";
-import { signOut, useSession } from "next-auth/react";
 import type React from "react";
 import type { BaseSyntheticEvent } from "react";
 import { useRef, useState } from "react";

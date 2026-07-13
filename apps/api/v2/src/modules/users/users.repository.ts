@@ -84,6 +84,18 @@ export class UsersRepository {
     });
   }
 
+  async findByAuthUserIdWithProfile(authUserId: string): Promise<UserWithProfile | null> {
+    // The Supabase mapping is queried directly until the upstream Prisma schema includes auth_user_id.
+    const rows = await this.dbRead.prisma.$queryRaw<Array<{ id: number | bigint }>>`
+      select id
+      from public.users
+      where auth_user_id = cast(${authUserId} as uuid)
+      limit 1
+    `;
+
+    return rows[0] ? this.findByIdWithProfile(Number(rows[0].id)) : null;
+  }
+
   async findOwnerByTeamIdWithProfile(teamId: number): Promise<UserWithProfile | null> {
     return this.dbRead.prisma.user.findFirst({
       where: {

@@ -1,12 +1,12 @@
-import { expect, type Locator, type Page } from "@playwright/test";
 import path from "node:path";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 export async function loginAsSeededAdmin(page: Page) {
   await page.goto("/auth/login");
   await page.getByTestId("login-form").locator("#email").fill("admin@example.com");
   await page.getByTestId("login-form").locator("#password").fill("ADMINadmin2022!");
 
-  const responsePromise = page.waitForResponse(/\/api\/auth\/callback\/credentials/);
+  const responsePromise = page.waitForResponse(/\/api\/auth\/supabase\/credentials/);
   await page.getByTestId("login-form").locator('[type="submit"]').click();
   await responsePromise;
 }

@@ -2,6 +2,7 @@ import type { NextResponse } from "next/server";
 
 import { ErrorCode } from "@calcom/lib/errorCodes";
 import { ErrorWithCode } from "@calcom/lib/errors";
+import { isPrismaError } from "@calcom/lib/server/getServerErrorFromUnknown";
 import slugify from "@calcom/lib/slugify";
 import prisma from "@calcom/prisma";
 import { RedirectType } from "@calcom/prisma/enums";
@@ -194,16 +195,29 @@ const usernameCheck = async (usernameRaw: string, currentOrgDomain?: string | nu
 /**
  * Should be used when in global namespace(i.e. outside of an organization)
  */
-export const isUsernameReservedDueToMigration = async (username: string) =>
-  !!(await prisma.tempOrgRedirect.findUnique({
-    where: {
-      from_type_fromOrgId: {
-        type: RedirectType.User,
-        from: username,
-        fromOrgId: 0,
-      },
-    },
-  }));
+export async function isUsernameReservedDueToMigration(username: string) {
+    try {
+      return !!(await prisma.tempOrgRedirect.findUnique({
+        where: {
+          from_type_fromOrgId: {
+            type: RedirectType.User,
+            from: username,
+            fromOrgId: 0,
+          },
+        },
+      }));
+    } catch (error) {
+      if (!isPrismaError(error) || error.code !== "P2021") {
+        throw error;
+      }
+
+      log.warn("TempOrgRedirect table missing during username migration check; treating username as available.", {
+        username,
+        error,
+      });
+      return false;
+    }
+}
 
 /**
  * It is a bit different from usernameCheck because it also check if the user signing up is the same user that has a pending invitation to organization

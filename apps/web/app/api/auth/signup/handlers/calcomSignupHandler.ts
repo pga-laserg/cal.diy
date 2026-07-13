@@ -36,6 +36,7 @@ import {
 } from "@calcom/prisma/enums";
 import { signupSchema } from "@calcom/prisma/zod-utils";
 import { buildLegacyRequest } from "@calcom/web/lib/buildLegacyCtx";
+import { createSupabaseBackedCalUser, isSupabaseAuthUserConflict } from "@lib/auth/supabaseUserProvisioning";
 import { cookies, headers } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -45,9 +46,7 @@ const billingService = {
   async createCustomer(_args: Record<string, unknown>): Promise<{ stripeCustomerId: string }> {
     return { stripeCustomerId: "" };
   },
-  async createSubscriptionCheckout(
-    _args: Record<string, unknown>
-  ): Promise<{ sessionId: string }> {
+  async createSubscriptionCheckout(_args: Record<string, unknown>): Promise<{ sessionId: string }> {
     return { sessionId: "" };
   },
 };
@@ -105,7 +104,7 @@ const handler: CustomNextApiHandler = async (body, usernameStatus, query) => {
     });
 
     if (foundToken?.teamId) {
-      const existingUser = await userRepository.findByEmailWithInvitedTo({email})
+      const existingUser = await userRepository.findByEmailWithInvitedTo({ email });
 
       if (existingUser && existingUser.invitedTo !== foundToken.teamId) {
         return NextResponse.json({ message: SIGNUP_ERROR_CODES.USER_ALREADY_EXISTS }, { status: 409 });
@@ -200,8 +199,8 @@ const handler: CustomNextApiHandler = async (body, usernameStatus, query) => {
         const existingUserByUsername = await userRepository.findByUsernameAndOrganizationId({
           username,
           organizationId,
-          excludeEmail: email
-        })
+          excludeEmail: email,
+        });
         if (existingUserByUsername) {
           return NextResponse.json({ message: SIGNUP_ERROR_CODES.USER_ALREADY_EXISTS }, { status: 409 });
         }
@@ -209,15 +208,25 @@ const handler: CustomNextApiHandler = async (body, usernameStatus, query) => {
 
       let user: { id: number };
       try {
-        user = await userRepository.upsertForSignup({
+        user = await createSupabaseBackedCalUser({
+          creationSource: CreationSource.WEBAPP,
           email,
-          username,
-          hashedPassword,
-          organizationId,
           emailVerified: new Date(),
-          identityProvider: IdentityProvider.CAL
-        })
+          hashedPassword,
+          identityProvider: IdentityProvider.CAL,
+          metadata: {
+            checkoutSessionId,
+            stripeCustomerId: customer.stripeCustomerId,
+          },
+          organizationId,
+          password,
+          username,
+        });
       } catch (error) {
+        if (isSupabaseAuthUserConflict(error)) {
+          return NextResponse.json({ message: SIGNUP_ERROR_CODES.USER_ALREADY_EXISTS }, { status: 409 });
+        }
+
         if (isPrismaError(error) && error.code === "P2002") {
           const target = String(error.meta?.target ?? "");
           if (target.includes("email") || target.includes("username")) {
@@ -250,21 +259,27 @@ const handler: CustomNextApiHandler = async (body, usernameStatus, query) => {
   } else {
     // Create the user
     try {
-      await userRepository.create({
-        username,
-        email,
-        hashedPassword,
-        organizationId: null,
+      await createSupabaseBackedCalUser({
         creationSource: CreationSource.WEBAPP,
-        locked: shouldLockByDefault,
+        email,
+        emailVerified: null,
+        hashedPassword,
         identityProvider: IdentityProvider.CAL,
+        locked: shouldLockByDefault,
         metadata: {
-          stripeCustomerId: customer.stripeCustomerId,
           checkoutSessionId,
-        }
-      })
+          stripeCustomerId: customer.stripeCustomerId,
+        },
+        organizationId: null,
+        password,
+        username,
+      });
     } catch (error) {
       // Fallback for race conditions where user was created between our check and create
+      if (isSupabaseAuthUserConflict(error)) {
+        return NextResponse.json({ message: SIGNUP_ERROR_CODES.USER_ALREADY_EXISTS }, { status: 409 });
+      }
+
       if (isPrismaError(error) && error.code === "P2002") {
         const target = String(error.meta?.target ?? "");
         if (target.includes("email") || target.includes("username")) {

@@ -31,6 +31,7 @@ import { OAuthClientRepository } from "@/modules/oauth-clients/oauth-client.repo
 import { OAuthFlowService } from "@/modules/oauth-clients/services/oauth-flow.service";
 import { PrismaReadService } from "@/modules/prisma/prisma-read.service";
 import { PrismaWriteService } from "@/modules/prisma/prisma-write.service";
+import { SupabaseAuthService } from "@/modules/auth/services/supabase-auth.service";
 import { ProfilesModule } from "@/modules/profiles/profiles.module";
 import { TokensModule } from "@/modules/tokens/tokens.module";
 import { UsersService } from "@/modules/users/services/users.service";
@@ -76,6 +77,7 @@ describe("ApiAuthStrategy", () => {
         ApiAuthStrategy,
         ConfigService,
         OAuthFlowService,
+        SupabaseAuthService,
         UsersRepository,
         UsersService,
         ApiKeysRepository,
@@ -220,6 +222,26 @@ describe("ApiAuthStrategy", () => {
       expect(user).toBeDefined();
       expect(user.id).toEqual(validOAuthUser.id);
       expect(mockRequest.organizationId).toEqual(organizationTwo.id);
+    });
+
+    it("should resolve a verified Supabase user through the Cal auth_user_id mapping", async () => {
+      const supabaseAuthService = module.get<SupabaseAuthService>(SupabaseAuthService);
+      const mappedUser = await module.get<UsersRepository>(UsersRepository).findByIdWithProfile(validOAuthUser.id);
+      expect(mappedUser).not.toBeNull();
+
+      jest.spyOn(supabaseAuthService, "getAuthenticatedUser").mockResolvedValue({ id: "supabase-user-id" } as never);
+      jest
+        .spyOn(module.get<UsersRepository>(UsersRepository), "findByAuthUserIdWithProfile")
+        .mockResolvedValue(mappedUser);
+
+      const mockRequest = createRequest() as ApiAuthGuardRequest;
+      mockRequest.authMethod = AuthMethods.SUPABASE;
+      mockRequest.organizationId = null;
+
+      const user = await strategy.supabaseStrategy("valid-supabase-access-token", mockRequest);
+
+      expect(user.id).toEqual(validOAuthUser.id);
+      expect(mockRequest.organizationId).toEqual(organization.id);
     });
 
     it("should throw 401 if api key is invalid", async () => {

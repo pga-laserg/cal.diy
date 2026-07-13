@@ -3,6 +3,7 @@ import { ApiAuthGuard } from "@/modules/auth/guards/api-auth/api-auth.guard";
 import { NextAuthGuard } from "@/modules/auth/guards/next-auth/next-auth.guard";
 import { ApiAuthStrategy } from "@/modules/auth/strategies/api-auth/api-auth.strategy";
 import { NextAuthStrategy } from "@/modules/auth/strategies/next-auth/next-auth.strategy";
+import { SupabaseAuthService } from "@/modules/auth/services/supabase-auth.service";
 import { DeploymentsModule } from "@/modules/deployments/deployments.module";
 import { MembershipsModule } from "@/modules/memberships/memberships.module";
 import { OAuthFlowService } from "@/modules/oauth-clients/services/oauth-flow.service";
@@ -22,7 +23,14 @@ import { PassportModule } from "@nestjs/passport";
     TokensModule,
     DeploymentsModule,
   ],
-  providers: [NextAuthGuard, NextAuthStrategy, ApiAuthGuard, ApiAuthStrategy, OAuthFlowService],
+  providers: [
+    NextAuthGuard,
+    NextAuthStrategy,
+    ApiAuthGuard,
+    ApiAuthStrategy,
+    OAuthFlowService,
+    SupabaseAuthService,
+  ],
   exports: [NextAuthGuard, ApiAuthGuard],
 })
 export class AuthModule {}

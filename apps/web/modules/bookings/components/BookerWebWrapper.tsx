@@ -17,8 +17,8 @@ import { DEFAULT_DARK_BRAND_COLOR, DEFAULT_LIGHT_BRAND_COLOR, WEBAPP_URL } from 
 import { useRouterQuery } from "@calcom/lib/hooks/useRouterQuery";
 import { localStorage } from "@calcom/lib/webstorage";
 import { useEvent, useScheduleForEvent } from "@calcom/web/modules/schedules/hooks/useEvent";
+import { useSession } from "@lib/auth/supabaseNextAuthReact";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useSession } from "next-auth/react";
 import { useCallback, useEffect, useMemo } from "react";
 import { shallow } from "zustand/shallow";
 import { useBookings } from "../hooks/useBookings";

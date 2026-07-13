@@ -55,8 +55,8 @@ export class BookingLocationController_2024_08_13 {
     summary: "Update booking location for an existing booking",
     description: `Updates the location for an existing booking.
 
-**Integration Fallback Behavior:**
-- **Google Meet**: Requires Google Calendar to be connected. If the booking has no Google Calendar event, it will automatically fall back to Cal Video.
+**Integration Behavior:**
+- **Google Meet**: Requires a connected Google Calendar. Requests without one are rejected rather than falling back to a proprietary video service.
 - **MS Teams**: If Office 365 Calendar is connected, generates the meeting link via calendar. Otherwise, uses the MS Teams video integration directly.
 
 <Note>The cal-api-version header is required for this endpoint. Without it, the request will fail with a 404 error.</Note>`,

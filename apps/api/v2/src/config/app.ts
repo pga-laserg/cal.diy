@@ -35,6 +35,10 @@ const loadConfig = (): AppConfig => {
     next: {
       authSecret: getEnv("NEXTAUTH_SECRET"),
     },
+    supabase: {
+      url: process.env.SUPABASE_URL,
+      publishableKey: process.env.SUPABASE_PUBLISHABLE_KEY,
+    },
     stripe: {
       apiKey: getEnv("STRIPE_API_KEY"),
       webhookSecret: getEnv("STRIPE_WEBHOOK_SECRET"),

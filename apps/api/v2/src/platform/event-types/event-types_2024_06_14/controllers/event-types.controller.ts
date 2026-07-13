@@ -60,7 +60,6 @@ import { UserWithProfile } from "@/modules/users/users.repository";
   path: "/v2/event-types",
   version: VERSION_2024_06_14_VALUE,
 })
-@UseGuards(PermissionsGuard)
 @DocsTags("Event Types")
 @ApiHeader({
   name: "cal-api-version",
@@ -82,7 +81,7 @@ export class EventTypesController_2024_06_14 {
 
   @Post("/")
   @Permissions([EVENT_TYPE_WRITE])
-  @UseGuards(ApiAuthGuard)
+  @UseGuards(ApiAuthGuard, PermissionsGuard)
   @ApiHeader(API_KEY_OR_ACCESS_TOKEN_HEADER)
   @ApiOperation({
     summary: "Create an event type",
@@ -107,7 +106,7 @@ export class EventTypesController_2024_06_14 {
 
   @Get("/:eventTypeId")
   @Permissions([EVENT_TYPE_READ])
-  @UseGuards(ApiAuthGuard)
+  @UseGuards(ApiAuthGuard, PermissionsGuard)
   @ApiHeader(API_KEY_OR_ACCESS_TOKEN_HEADER)
   @ApiOperation({
     summary: "Get an event type",
@@ -180,7 +179,7 @@ export class EventTypesController_2024_06_14 {
 
   @Patch("/:eventTypeId")
   @Permissions([EVENT_TYPE_WRITE])
-  @UseGuards(ApiAuthGuard)
+  @UseGuards(ApiAuthGuard, PermissionsGuard)
   @ApiHeader(API_KEY_OR_ACCESS_TOKEN_HEADER)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -208,7 +207,7 @@ export class EventTypesController_2024_06_14 {
 
   @Delete("/:eventTypeId")
   @Permissions([EVENT_TYPE_WRITE])
-  @UseGuards(ApiAuthGuard)
+  @UseGuards(ApiAuthGuard, PermissionsGuard)
   @ApiHeader(API_KEY_OR_ACCESS_TOKEN_HEADER)
   @ApiOperation({
     summary: "Delete an event type",

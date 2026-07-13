@@ -6,20 +6,13 @@ import { trpc } from "@calcom/trpc/react";
 import { Avatar } from "@calcom/ui/components/avatar";
 import { Button } from "@calcom/ui/components/button";
 import { Divider } from "@calcom/ui/components/divider";
-import {
-  Form,
-  Label,
-  SelectField,
-  TextAreaField,
-  TextField,
-  ToggleGroup,
-} from "@calcom/ui/components/form";
+import { Form, Label, SelectField, TextAreaField, TextField, ToggleGroup } from "@calcom/ui/components/form";
 import { ImageUploader } from "@calcom/ui/components/image-uploader";
 import { SheetBody, SheetFooter, SheetHeader, SheetTitle } from "@calcom/ui/components/sheet";
 import { showToast } from "@calcom/ui/components/toast";
 import { TimezoneSelect } from "@calcom/web/modules/timezone/components/TimezoneSelect";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useSession } from "next-auth/react";
+import { useSession } from "@lib/auth/supabaseNextAuthReact";
 import type { Dispatch } from "react";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";

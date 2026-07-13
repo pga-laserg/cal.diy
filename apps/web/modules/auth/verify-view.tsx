@@ -8,9 +8,9 @@ import classNames from "@calcom/ui/classNames";
 import { Button } from "@calcom/ui/components/button";
 import { showToast } from "@calcom/ui/components/toast";
 import { MailOpenIcon, TriangleAlertIcon } from "@coss/ui/icons";
+import { signIn } from "@lib/auth/supabaseNextAuthReact";
 import { motion } from "framer-motion";
 import { usePathname, useRouter } from "next/navigation";
-import { signIn } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
 import z from "zod";
 

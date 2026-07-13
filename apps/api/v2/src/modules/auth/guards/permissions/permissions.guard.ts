@@ -1,17 +1,18 @@
+import { X_CAL_CLIENT_ID } from "@calcom/platform-constants";
+import { hasPermissions } from "@calcom/platform-utils";
+import type { PlatformOAuthClient } from "@calcom/prisma/client";
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { Reflector } from "@nestjs/core";
+import { getToken } from "next-auth/jwt";
 import { isApiKey } from "@/lib/api-key";
+import { AuthMethods } from "@/lib/enums/auth-methods";
 import { Permissions } from "@/modules/auth/decorators/permissions/permissions.decorator";
+import { parseBearerToken } from "@/modules/auth/utils/parse-bearer-token";
 import { OAuthClientRepository } from "@/modules/oauth-clients/oauth-client.repository";
 import { OAuthClientsOutputService } from "@/modules/oauth-clients/services/oauth-clients/oauth-clients-output.service";
 import { TokensRepository } from "@/modules/tokens/tokens.repository";
 import { TokensService } from "@/modules/tokens/tokens.service";
-import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { Reflector } from "@nestjs/core";
-import { getToken } from "next-auth/jwt";
-
-import { X_CAL_CLIENT_ID } from "@calcom/platform-constants";
-import { hasPermissions } from "@calcom/platform-utils";
-import type { PlatformOAuthClient } from "@calcom/prisma/client";
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
@@ -32,7 +33,7 @@ export class PermissionsGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest();
-    const bearerToken = request.get("Authorization")?.replace("Bearer ", "");
+    const bearerToken = parseBearerToken(request.get("Authorization"));
     const nextAuthSecret = this.config.get("next.authSecret", { infer: true });
     const nextAuthToken = await getToken({ req: request, secret: nextAuthSecret });
     const oAuthClientId = request.params?.clientId || request.get(X_CAL_CLIENT_ID);
@@ -40,6 +41,16 @@ export class PermissionsGuard implements CanActivate {
     const isThirdPartyBearerToken = bearerToken && this.getDecodedThirdPartyAccessToken(bearerToken);
 
     // only check permissions for accessTokens attached to platform oAuth Client or platform oAuth credentials, not for next token or api key or third party oauth client
+    if (request.authMethod === AuthMethods.SUPABASE) {
+      if (request.user?.locked) {
+        throw new ForbiddenException("PermissionsGuard - Supabase user account is locked.");
+      }
+
+      // Supabase is the first-party user session. Resource ownership and role
+      // guards enforce its access model; OAuth scope bits are for platform clients.
+      return true;
+    }
+
     if (nextAuthToken || apiKey || isThirdPartyBearerToken) {
       return true;
     }
@@ -50,9 +61,12 @@ export class PermissionsGuard implements CanActivate {
       );
     }
 
-    const oAuthClient = bearerToken
-      ? await this.getOAuthClientByAccessToken(bearerToken)
-      : await this.getOAuthClientById(oAuthClientId);
+    let oAuthClient: Pick<PlatformOAuthClient, "id" | "permissions">;
+    if (bearerToken) {
+      oAuthClient = await this.getOAuthClientByAccessToken(bearerToken);
+    } else {
+      oAuthClient = await this.getOAuthClientById(oAuthClientId);
+    }
 
     const hasRequiredPermissions = hasPermissions(oAuthClient.permissions, [...requiredPermissions]);
 
@@ -91,7 +105,7 @@ export class PermissionsGuard implements CanActivate {
     return oAuthClient;
   }
 
-  getDecodedThirdPartyAccessToken(bearerToken: string) {
+  getDecodedThirdPartyAccessToken(bearerToken: string): ReturnType<TokensService["getDecodedThirdPartyAccessToken"]> {
     return this.tokensService.getDecodedThirdPartyAccessToken(bearerToken);
   }
 }

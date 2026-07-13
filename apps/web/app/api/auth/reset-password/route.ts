@@ -1,17 +1,17 @@
+import { validPassword } from "@calcom/features/auth/lib/validPassword";
+import { hashPassword } from "@calcom/lib/auth/hashPassword";
+import { checkRateLimitAndThrowError } from "@calcom/lib/checkRateLimitAndThrowError";
+import getIP from "@calcom/lib/getIP";
+import { piiHasher } from "@calcom/lib/server/PiiHasher";
+import { updateSupabasePasswordForCalUser } from "@calcom/lib/server/supabaseAdmin";
+import prisma from "@calcom/prisma";
+import { IdentityProvider } from "@calcom/prisma/enums";
 import { defaultResponderForAppDir } from "app/api/defaultResponderForAppDir";
 import { parseRequestData } from "app/api/parseRequestData";
 import { cookies } from "next/headers";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-
-import { validPassword } from "@calcom/features/auth/lib/validPassword";
-import { hashPassword } from "@calcom/lib/auth/hashPassword";
-import { checkRateLimitAndThrowError } from "@calcom/lib/checkRateLimitAndThrowError";
-import getIP from "@calcom/lib/getIP";
-import { piiHasher } from "@calcom/lib/server/PiiHasher";
-import prisma from "@calcom/prisma";
-import { IdentityProvider } from "@calcom/prisma/enums";
 
 const passwordResetRequestSchema = z.object({
   csrfToken: z.string(),
@@ -64,6 +64,19 @@ async function handler(req: NextRequest) {
   // never existed within Cal. In this case we do not want to disclose the email's existence.
   // instead, we just return 404
   try {
+    const user = await prisma.user.findUnique({
+      where: {
+        email: maybeRequest.email,
+      },
+      select: { id: true },
+    });
+
+    if (!user) {
+      return NextResponse.json({}, { status: 404 });
+    }
+
+    await updateSupabasePasswordForCalUser({ calUserId: user.id, password: rawPassword });
+
     await prisma.user.update({
       where: {
         email: maybeRequest.email,
@@ -80,8 +93,15 @@ async function handler(req: NextRequest) {
         identityProviderId: null,
       },
     });
-  } catch (e) {
-    return NextResponse.json({}, { status: 404 });
+  } catch (error) {
+    if (error instanceof Error && error.message === "SUPABASE_AUTH_MAPPING_MISSING") {
+      return NextResponse.json(
+        { error: "Account authentication is not fully provisioned." },
+        { status: 409 }
+      );
+    }
+
+    return NextResponse.json({ error: "Unable to reset password." }, { status: 500 });
   }
 
   await expireResetPasswordRequest(rawRequestId);

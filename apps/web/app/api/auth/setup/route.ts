@@ -1,17 +1,16 @@
-import { defaultResponderForAppDir } from "app/api/defaultResponderForAppDir";
-import { parseRequestData } from "app/api/parseRequestData";
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
-import z from "zod";
-
 import { hashPassword } from "@calcom/lib/auth/hashPassword";
 import { isPasswordValid } from "@calcom/lib/auth/isPasswordValid";
 import { emailRegex } from "@calcom/lib/emailSchema";
 import { HttpError } from "@calcom/lib/http-error";
 import slugify from "@calcom/lib/slugify";
 import prisma from "@calcom/prisma";
-import { IdentityProvider } from "@calcom/prisma/enums";
-import { CreationSource } from "@calcom/prisma/enums";
+import { CreationSource, IdentityProvider } from "@calcom/prisma/enums";
+import { createSupabaseBackedCalUser } from "@lib/auth/supabaseUserProvisioning";
+import { defaultResponderForAppDir } from "app/api/defaultResponderForAppDir";
+import { parseRequestData } from "app/api/parseRequestData";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import z from "zod";
 
 const querySchema = z.object({
   username: z
@@ -42,18 +41,17 @@ async function handler(req: NextRequest) {
 
   const hashedPassword = await hashPassword(parsedQuery.data.password);
 
-  await prisma.user.create({
-    data: {
-      username,
-      email: userEmail,
-      password: { create: { hash: hashedPassword } },
-      role: "ADMIN",
-      name: parsedQuery.data.full_name,
-      emailVerified: new Date(),
-      locale: "en", // TODO: We should revisit this
-      identityProvider: IdentityProvider.CAL,
-      creationSource: CreationSource.WEBAPP,
-    },
+  await createSupabaseBackedCalUser({
+    creationSource: CreationSource.WEBAPP,
+    email: userEmail,
+    emailVerified: new Date(),
+    hashedPassword,
+    identityProvider: IdentityProvider.CAL,
+    locale: "en",
+    name: parsedQuery.data.full_name,
+    password: parsedQuery.data.password,
+    role: "ADMIN",
+    username,
   });
 
   return NextResponse.json({ message: "First admin user created successfully." });

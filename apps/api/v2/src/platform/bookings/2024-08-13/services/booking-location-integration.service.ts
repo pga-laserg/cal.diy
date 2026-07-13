@@ -115,12 +115,9 @@ export class BookingLocationIntegrationService_2024_08_13 {
     );
 
     if (!hasGoogleCalendar) {
-      this.logger.log(`Google Meet requested but no Google Calendar found. Falling back to Cal Video.`);
-      return this.handleCalVideoLocation({
-        ...ctx,
-        integrationSlug: "cal-video",
-        internalLocation: "integrations:daily",
-      });
+      throw new BadRequestException(
+        "Google Meet requires a connected Google Calendar. Connect one first or choose a different meeting location."
+      );
     }
 
     return this.handleCalendarBasedIntegration(ctx, "google_calendar");

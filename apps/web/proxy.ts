@@ -1,5 +1,6 @@
 import process from "node:process";
 import { getCspHeader, getCspNonce } from "@lib/csp";
+import { createServerClient } from "@supabase/ssr";
 import { get } from "@vercel/edge-config";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
@@ -91,10 +92,9 @@ const proxy = async (req: NextRequest): Promise<NextResponse<unknown>> => {
     }
   }
 
-  const res = NextResponse.next({
-    request: {
-      headers: sanitizeRequestHeaders(requestHeaders),
-    },
+  const res = await refreshSupabaseSession({
+    req: reqWithEnrichedHeaders,
+    requestHeaders: sanitizeRequestHeaders(requestHeaders),
   });
 
   if (url.pathname.startsWith("/auth/logout")) {
@@ -162,8 +162,55 @@ function enrichRequestWithHeaders({ req }: { req: NextRequest }) {
   return reqWithCSP;
 }
 
+async function refreshSupabaseSession({
+  req,
+  requestHeaders,
+}: {
+  req: NextRequest;
+  requestHeaders: Headers;
+}): Promise<NextResponse> {
+  let response = NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    return response;
+  }
+
+  const supabase = createServerClient(supabaseUrl, supabaseKey, {
+    cookies: {
+      getAll() {
+        return req.cookies.getAll();
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value }) => {
+          req.cookies.set(name, value);
+        });
+        response = NextResponse.next({
+          request: {
+            headers: requestHeaders,
+          },
+        });
+        cookiesToSet.forEach(({ name, value, options }) => {
+          response.cookies.set(name, value, options);
+        });
+      },
+    },
+  });
+
+  // getUser validates the current identity and refreshes an expired session.
+  await supabase.auth.getUser();
+  return response;
+}
+
 export const config = {
-  matcher: ["/auth/login", "/login", "/apps/installed", "/auth/logout", "/:path*/embed", "/availability", "/api/auth/signup"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
 };
 
 export default proxy;

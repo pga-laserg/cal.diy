@@ -1,4 +1,4 @@
-import { useSession } from "next-auth/react";
+import { useSession } from "@lib/auth/supabaseNextAuthReact";
 import type { Dispatch } from "react";
 import type { UserTableAction, UserTableState } from "./types";
 

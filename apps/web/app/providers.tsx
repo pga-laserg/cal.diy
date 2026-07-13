@@ -1,15 +1,12 @@
 "use client";
 
-import { TrpcProvider } from "app/_trpc/trpc-provider";
-import { SessionProvider } from "next-auth/react";
-import CacheProvider from "react-inlinesvg/provider";
-import { ToastProvider } from "@coss/ui/components/toast";
-
-import { WebPushProvider } from "@calcom/web/modules/notifications/components/WebPushContext";
 import { NotificationSoundHandler } from "@calcom/web/components/notification-sound-handler";
-
+import { WebPushProvider } from "@calcom/web/modules/notifications/components/WebPushContext";
+import { ToastProvider } from "@coss/ui/components/toast";
+import { SessionProvider } from "@lib/auth/supabaseNextAuthReact";
 import useIsBookingPage from "@lib/hooks/useIsBookingPage";
-
+import { TrpcProvider } from "app/_trpc/trpc-provider";
+import CacheProvider from "react-inlinesvg/provider";
 import { GeoProvider } from "./GeoContext";
 
 type ProvidersProps = {

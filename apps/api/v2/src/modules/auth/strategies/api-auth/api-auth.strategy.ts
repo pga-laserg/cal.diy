@@ -1,25 +1,24 @@
-import { sha256Hash, isApiKey, stripApiKey } from "@/lib/api-key";
+import { INVALID_ACCESS_TOKEN, X_CAL_CLIENT_ID, X_CAL_SECRET_KEY } from "@calcom/platform-constants";
+import { Injectable, InternalServerErrorException, UnauthorizedException } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { PassportStrategy } from "@nestjs/passport";
+import type { Request } from "express";
+import { getToken } from "next-auth/jwt";
+import type { AllowedAuthMethod } from "../../decorators/api-auth-guard-only-allow.decorator";
+import { isApiKey, sha256Hash, stripApiKey } from "@/lib/api-key";
 import { AuthMethods } from "@/lib/enums/auth-methods";
 import { isOriginAllowed } from "@/lib/is-origin-allowed/is-origin-allowed";
 import { BaseStrategy } from "@/lib/passport/strategies/types";
 import { ApiKeysRepository } from "@/modules/api-keys/api-keys-repository";
+import { SupabaseAuthService } from "@/modules/auth/services/supabase-auth.service";
+import { parseBearerToken } from "@/modules/auth/utils/parse-bearer-token";
 import { MembershipsRepository } from "@/modules/memberships/memberships.repository";
 import { OAuthClientRepository } from "@/modules/oauth-clients/oauth-client.repository";
 import { OAuthFlowService } from "@/modules/oauth-clients/services/oauth-flow.service";
 import { TokensRepository } from "@/modules/tokens/tokens.repository";
 import { TokensService } from "@/modules/tokens/tokens.service";
 import { UsersService } from "@/modules/users/services/users.service";
-import { UserWithProfile, UsersRepository } from "@/modules/users/users.repository";
-import { Injectable, InternalServerErrorException, UnauthorizedException } from "@nestjs/common";
-import { Logger } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { PassportStrategy } from "@nestjs/passport";
-import type { Request } from "express";
-import { getToken } from "next-auth/jwt";
-
-import { INVALID_ACCESS_TOKEN, X_CAL_CLIENT_ID, X_CAL_SECRET_KEY } from "@calcom/platform-constants";
-
-import type { AllowedAuthMethod } from "../../decorators/api-auth-guard-only-allow.decorator";
+import { UsersRepository, UserWithProfile } from "@/modules/users/users.repository";
 
 export type ApiAuthGuardUser = UserWithProfile & { isSystemAdmin: boolean };
 export type ApiAuthGuardRequest = Request & {
@@ -36,8 +35,6 @@ export const ONLY_CLIENT_SECRET_PROVIDED_MESSAGE = `Only '${X_CAL_SECRET_KEY}' h
 
 @Injectable()
 export class ApiAuthStrategy extends PassportStrategy(BaseStrategy, "api-auth") {
-  private readonly logger = new Logger("ApiAuthStrategy");
-
   constructor(
     private readonly config: ConfigService,
     private readonly oauthFlowService: OAuthFlowService,
@@ -47,7 +44,8 @@ export class ApiAuthStrategy extends PassportStrategy(BaseStrategy, "api-auth") 
     private readonly apiKeyRepository: ApiKeysRepository,
     private readonly oauthRepository: OAuthClientRepository,
     private readonly usersService: UsersService,
-    private readonly membershipsRepository: MembershipsRepository
+    private readonly membershipsRepository: MembershipsRepository,
+    private readonly supabaseAuthService: SupabaseAuthService
   ) {
     super();
   }
@@ -57,7 +55,7 @@ export class ApiAuthStrategy extends PassportStrategy(BaseStrategy, "api-auth") 
       const { params } = request;
       const oAuthClientSecret = request.get(X_CAL_SECRET_KEY);
       const oAuthClientId = params.clientId || request.get(X_CAL_CLIENT_ID);
-      const bearerToken = request.get("Authorization")?.replace("Bearer ", "");
+      const bearerToken = parseBearerToken(request.get("Authorization"));
 
       const allowedMethods = request.allowedAuthMethods;
       const noSpecificAuthExpected = !allowedMethods || !allowedMethods.length;
@@ -68,6 +66,7 @@ export class ApiAuthStrategy extends PassportStrategy(BaseStrategy, "api-auth") 
       const nextAuthAllowed = noSpecificAuthExpected || allowedMethods.includes("NEXT_AUTH");
       const thirdPartyAccessTokenAllowed =
         noSpecificAuthExpected || allowedMethods.includes("THIRD_PARTY_ACCESS_TOKEN");
+      const supabaseAllowed = noSpecificAuthExpected || allowedMethods.includes("SUPABASE");
 
       if (oAuthClientId && oAuthClientSecret && oAuthAllowed) {
         request.authMethod = AuthMethods["OAUTH_CLIENT"];
@@ -75,6 +74,11 @@ export class ApiAuthStrategy extends PassportStrategy(BaseStrategy, "api-auth") 
       }
 
       if (bearerToken) {
+        if (supabaseAllowed && this.supabaseAuthService.isSupabaseAccessToken(bearerToken)) {
+          request.authMethod = AuthMethods["SUPABASE"];
+          return await this.authenticateSupabaseUser(bearerToken, request);
+        }
+
         if (!apiKeyAllowed && !accessTokenAllowed && thirdPartyAccessTokenAllowed) {
           request.authMethod = AuthMethods["THIRD_PARTY_ACCESS_TOKEN"];
           const result = await this.validateThirdPartyAccessToken(bearerToken, request);
@@ -99,6 +103,10 @@ export class ApiAuthStrategy extends PassportStrategy(BaseStrategy, "api-auth") 
               if (result.success) {
                 return this.success(this.getSuccessUser(result.data));
               }
+            }
+            if (supabaseAllowed && request.authMethod === AuthMethods["ACCESS_TOKEN"]) {
+              request.authMethod = AuthMethods["SUPABASE"];
+              return await this.authenticateSupabaseUser(bearerToken, request);
             }
             // token was not third party token, rethrow error from authenticateBearerToken
             if (err instanceof Error) {
@@ -314,6 +322,29 @@ export class ApiAuthStrategy extends PassportStrategy(BaseStrategy, "api-auth") 
     const organizationId = this.usersService.getUserMainOrgId(user) as number;
     request.organizationId = organizationId;
 
+    return user;
+  }
+
+  async authenticateSupabaseUser(accessToken: string, request: ApiAuthGuardRequest) {
+    const user = await this.supabaseStrategy(accessToken, request);
+    return this.success(this.getSuccessUser(user));
+  }
+
+  async supabaseStrategy(accessToken: string, request: ApiAuthGuardRequest): Promise<UserWithProfile> {
+    const authUser = await this.supabaseAuthService.getAuthenticatedUser(accessToken);
+    const user = await this.userRepository.findByAuthUserIdWithProfile(authUser.id);
+
+    if (!user) {
+      throw new UnauthorizedException(
+        "ApiAuthStrategy - supabase - No Cal user is mapped to the authenticated Supabase user."
+      );
+    }
+
+    if (user.locked) {
+      throw new UnauthorizedException("ApiAuthStrategy - supabase - User account is locked.");
+    }
+
+    request.organizationId = this.usersService.getUserMainOrgId(user) as number;
     return user;
   }
 

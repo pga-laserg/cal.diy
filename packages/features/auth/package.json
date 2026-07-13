@@ -13,6 +13,8 @@
     "@calcom/prisma": "workspace:*",
     "@calcom/trpc": "workspace:*",
     "@calcom/ui": "workspace:*",
+    "@supabase/ssr": "0.10.3",
+    "@supabase/supabase-js": "2.105.3",
     "bcryptjs": "2.4.3",
     "dub": "0.59.1",
     "handlebars": "4.7.9",

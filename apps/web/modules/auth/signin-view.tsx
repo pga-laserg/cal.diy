@@ -1,10 +1,8 @@
 "use client";
 
-import { signIn } from "next-auth/react";
-
 import type { inferSSRProps } from "@calcom/types/inferSSRProps";
 import { Button } from "@calcom/ui/components/button";
-
+import { signIn } from "@lib/auth/supabaseNextAuthReact";
 import type { getServerSideProps } from "@server/lib/auth/signin/getServerSideProps";
 
 export type PageProps = inferSSRProps<typeof getServerSideProps>;

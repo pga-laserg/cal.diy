@@ -1,5 +1,3 @@
-import { useSession } from "next-auth/react";
-
 import { appStoreMetadata } from "@calcom/app-store/appStoreMetaData";
 import dayjs from "@calcom/dayjs";
 import { useLocale } from "@calcom/lib/hooks/useLocale";
@@ -14,6 +12,7 @@ import {
   ExternalLinkIcon,
   SearchIcon,
 } from "@coss/ui/icons";
+import { useSession } from "@lib/auth/supabaseNextAuthReact";
 import type { Action } from "kbar";
 import {
   KBarAnimator,

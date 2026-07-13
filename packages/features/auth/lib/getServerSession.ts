@@ -7,15 +7,24 @@ import { LRUCache } from "lru-cache";
 import type { GetServerSidePropsContext, NextApiRequest } from "next";
 import type { AuthOptions, Session } from "next-auth";
 import { getToken } from "next-auth/jwt";
+import { getSupabaseSessionIdentity } from "./supabaseServerSession";
 
 class LicenseKeySingleton {
-  static async getInstance(..._args: unknown[]) { return new LicenseKeySingleton(); }
-  async checkLicense() { return true; }
-  async validateLicenseKey() { return true; }
+  static async getInstance(..._args: unknown[]) {
+    return new LicenseKeySingleton();
+  }
+  async checkLicense() {
+    return true;
+  }
+  async validateLicenseKey() {
+    return true;
+  }
 }
 class DeploymentRepository {
   constructor(_prisma?: unknown) {}
-  async findFirst(..._args: unknown[]) { return null; }
+  async findFirst(..._args: unknown[]) {
+    return null;
+  }
 }
 
 const log = logger.getSubLogger({ prefix: ["getServerSession"] });
@@ -25,36 +34,30 @@ const log = logger.getSubLogger({ prefix: ["getServerSession"] });
  */
 const CACHE = new LRUCache<string, Session>({ max: 1000 });
 
-/**
- * This is a slimmed down version of the `getServerSession` function from
- * `next-auth`.
- *
- * Instead of requiring the entire options object for NextAuth, we create
- * a compatible session using information from the incoming token.
- *
- * The downside to this is that we won't refresh sessions if the users
- * token has expired (30 days). This should be fine as we call `/auth/session`
- * frequently enough on the client-side to keep the session alive.
- */
-export async function getServerSession(options: {
-  req: NextApiRequest | GetServerSidePropsContext["req"];
-  authOptions?: AuthOptions;
+type SessionToken = {
+  belongsToActiveTeam?: boolean;
+  email: string;
+  exp?: number;
+  impersonatedBy?: {
+    id?: number;
+  };
+  org?: Session["user"]["org"];
+  orgAwareUsername?: string | null;
+  profileId?: Session["profileId"];
+  sub: string;
+  upId?: string;
+};
+
+async function buildSessionFromToken({
+  cacheKey,
+  expires,
+  token,
+}: {
+  cacheKey: string;
+  expires?: string;
+  token: SessionToken;
 }) {
-  const { req, authOptions: { secret } = {} } = options;
-
-  const token = await getToken({
-    req,
-    secret,
-  });
-
-  log.debug("Getting server session", safeStringify({ token }));
-
-  if (!token || !token.email || !token.sub) {
-    log.debug("Couldn't get token");
-    return null;
-  }
-
-  const cachedSession = CACHE.get(JSON.stringify(token));
+  const cachedSession = CACHE.get(cacheKey);
 
   if (cachedSession) {
     log.debug("Returning cached session", safeStringify(cachedSession));
@@ -100,7 +103,7 @@ export async function getServerSession(options: {
 
   const session: Session = {
     hasValidLicense,
-    expires: new Date(typeof token.exp === "number" ? token.exp * 1000 : Date.now()).toISOString(),
+    expires: expires ?? new Date(typeof token.exp === "number" ? token.exp * 1000 : Date.now()).toISOString(),
     user: {
       id: user.id,
       uuid: user.uuid,
@@ -144,8 +147,57 @@ export async function getServerSession(options: {
     }
   }
 
-  CACHE.set(JSON.stringify(token), session);
+  CACHE.set(cacheKey, session);
 
   log.debug("Returned session", safeStringify(session));
   return session;
+}
+
+/**
+ * This is a slimmed down version of the `getServerSession` function from
+ * `next-auth`.
+ *
+ * Instead of requiring the entire options object for NextAuth, we create
+ * a compatible session using information from the incoming token.
+ *
+ * The downside to this is that we won't refresh sessions if the users
+ * token has expired (30 days). This should be fine as we call `/auth/session`
+ * frequently enough on the client-side to keep the session alive.
+ */
+export async function getServerSession(options: {
+  req: NextApiRequest | GetServerSidePropsContext["req"];
+  authOptions?: AuthOptions;
+}) {
+  const { req, authOptions: { secret } = {} } = options;
+
+  const supabaseIdentity = await getSupabaseSessionIdentity(req);
+
+  if (supabaseIdentity) {
+    log.debug("Getting server session from Supabase", safeStringify({ supabaseIdentity }));
+    return buildSessionFromToken({
+      cacheKey: supabaseIdentity.cacheKey,
+      expires: supabaseIdentity.expires,
+      token: {
+        email: supabaseIdentity.email,
+        sub: String(supabaseIdentity.calUserId),
+      },
+    });
+  }
+
+  const token = (await getToken({
+    req,
+    secret,
+  })) as SessionToken | null;
+
+  log.debug("Getting server session", safeStringify({ token }));
+
+  if (!token || !token.email || !token.sub) {
+    log.debug("Couldn't get token");
+    return null;
+  }
+
+  return buildSessionFromToken({
+    cacheKey: JSON.stringify(token),
+    token,
+  });
 }

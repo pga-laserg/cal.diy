@@ -44,6 +44,8 @@ Cal.diy is **100% MIT-licensed** with no proprietary "Enterprise Edition" featur
 
 ### What's different from Cal.com?
 
+For the AgendaCon local dashboard and Companion simulator workflow, see [Local Companion And Cal.diy](./docs/local-development-companion-and-dashboard.md).
+
 - **No enterprise features** — Teams, Organizations, Insights, Workflows, SSO/SAML, and other EE-only features have been removed
 - **No license key required** — Everything works out of the box, no Cal.com account or license needed
 - **100% open source** — The entire codebase is licensed under MIT, no "Open Core" split

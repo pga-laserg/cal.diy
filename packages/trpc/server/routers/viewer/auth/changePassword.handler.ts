@@ -1,11 +1,10 @@
 import { validPassword } from "@calcom/features/auth/lib/validPassword";
 import { verifyPassword } from "@calcom/features/auth/lib/verifyPassword";
 import { hashPassword } from "@calcom/lib/auth/hashPassword";
+import { updateSupabasePasswordForCalUser } from "@calcom/lib/server/supabaseAdmin";
 import { prisma } from "@calcom/prisma";
 import { IdentityProvider } from "@calcom/prisma/enums";
-
 import { TRPCError } from "@trpc/server";
-
 import type { TrpcSessionUser } from "../../../types";
 import type { TChangePasswordInputSchema } from "./changePassword.schema";
 
@@ -59,6 +58,16 @@ export const changePasswordHandler = async ({ input, ctx }: ChangePasswordOption
   }
 
   const hashedPassword = await hashPassword(newPassword);
+  try {
+    await updateSupabasePasswordForCalUser({ calUserId: user.id, password: newPassword });
+  } catch (error) {
+    throw new TRPCError({
+      cause: error,
+      code: "INTERNAL_SERVER_ERROR",
+      message: "SUPABASE_PASSWORD_UPDATE_FAILED",
+    });
+  }
+
   await prisma.userPassword.upsert({
     where: {
       userId: user.id,

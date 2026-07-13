@@ -5,6 +5,7 @@ export type AllowedAuthMethod =
   | "API_KEY"
   | "ACCESS_TOKEN"
   | "NEXT_AUTH"
+  | "SUPABASE"
   | "THIRD_PARTY_ACCESS_TOKEN";
 
 export const ApiAuthGuardOnlyAllow = Reflector.createDecorator<AllowedAuthMethod[]>();

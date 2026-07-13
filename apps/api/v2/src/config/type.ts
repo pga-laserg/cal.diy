@@ -23,6 +23,10 @@ export type AppConfig = {
   next: {
     authSecret: string;
   };
+  supabase: {
+    url?: string;
+    publishableKey?: string;
+  };
   stripe: {
     apiKey: string;
     webhookSecret: string;

@@ -23,8 +23,8 @@ import {
   SettingsIcon,
   UserIcon,
 } from "@coss/ui/icons";
+import { signOut } from "@lib/auth/supabaseNextAuthReact";
 import Link from "next/link";
-import { signOut } from "next-auth/react";
 import type { MouseEvent } from "react";
 import { useEffect, useState } from "react";
 

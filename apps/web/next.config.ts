@@ -1,9 +1,11 @@
+import path from "node:path";
+import process from "node:process";
+import i18nConfig from "@calcom/i18n/next-i18next.config";
 import { withBotId } from "botid/next/config";
 import { config as dotenvConfig } from "dotenv";
 import type { NextConfig } from "next";
 import type { RouteHas } from "next/dist/lib/load-custom-routes";
 import { withAxiom } from "next-axiom";
-import i18nConfig from "@calcom/i18n/next-i18next.config";
 import packageJson from "./package.json";
 import {
   nextJsOrgRewriteConfig,
@@ -13,7 +15,9 @@ import {
 } from "./pagesAndRewritePaths";
 import { TRIGGER_VERSION } from "./trigger.version"; // adjust path as needed
 
-dotenvConfig({ path: "../../.env" });
+["../../../.env.local", "../../../env.local", "../../.env.local", "../../env.local", "../../.env"].forEach(
+  (envFile) => dotenvConfig({ path: path.resolve(__dirname, envFile), override: false })
+);
 
 const { version } = packageJson;
 const {
@@ -21,6 +25,12 @@ const {
 } = i18nConfig;
 
 type NextConfigPlugin = (config: NextConfig) => NextConfig;
+
+type WebpackConfig = {
+  resolve?: {
+    alias?: Record<string, unknown>;
+  };
+};
 
 // Type guard to filter out null/undefined values with proper type narrowing
 function isNotNull<T>(value: T | null | undefined): value is T {
@@ -47,7 +57,6 @@ function adjustEnvVariables(): void {
 
 adjustEnvVariables();
 
-if (!process.env.NEXTAUTH_SECRET) throw new Error("Please set NEXTAUTH_SECRET");
 if (!process.env.CALENDSO_ENCRYPTION_KEY) throw new Error("Please set CALENDSO_ENCRYPTION_KEY");
 
 const isOrganizationsEnabled =
@@ -223,6 +232,7 @@ const nextConfig = (phase: string): NextConfig => {
 
   return {
     output: process.env.BUILD_STANDALONE === "true" ? "standalone" : undefined,
+    allowedDevOrigins: ["192.168.1.39"],
     serverExternalPackages: [
       "deasync",
       "http-cookie-agent",
@@ -252,6 +262,14 @@ const nextConfig = (phase: string): NextConfig => {
       lodash: {
         transform: "lodash/{{member}}",
       },
+    },
+    webpack(config: WebpackConfig) {
+      config.resolve = config.resolve || {};
+      config.resolve.alias = {
+        ...(config.resolve.alias || {}),
+        "next-auth/react": path.resolve(__dirname, "lib/auth/supabaseNextAuthReact.tsx"),
+      };
+      return config;
     },
     images: {
       unoptimized: true,

@@ -318,7 +318,6 @@ if (IS_GOOGLE_LOGIN_ENABLED) {
     GoogleProvider({
       clientId: GOOGLE_CLIENT_ID,
       clientSecret: GOOGLE_CLIENT_SECRET,
-      allowDangerousEmailAccountLinking: true,
       authorization: {
         params: {
           scope: [...GOOGLE_OAUTH_SCOPES, ...GOOGLE_CALENDAR_SCOPES].join(" "),
@@ -335,7 +334,6 @@ if (OUTLOOK_LOGIN_ENABLED && OUTLOOK_CLIENT_ID && OUTLOOK_CLIENT_SECRET) {
     AzureADProvider({
       clientId: OUTLOOK_CLIENT_ID,
       clientSecret: OUTLOOK_CLIENT_SECRET,
-      allowDangerousEmailAccountLinking: true,
       authorization: {
         params: {
           scope: ["openid", "profile", "email", ...MICROSOFT_CALENDAR_SCOPES].join(" "),

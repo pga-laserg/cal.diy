@@ -1,10 +1,5 @@
 "use client";
 
-import { useSession } from "next-auth/react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-
 import { getQueryParam } from "@calcom/features/bookings/Booker/utils/query-param";
 import ServerTrans from "@calcom/lib/components/ServerTrans";
 import { WEBAPP_URL } from "@calcom/lib/constants";
@@ -13,8 +8,11 @@ import { trpc } from "@calcom/trpc/react";
 import { Alert } from "@calcom/ui/components/alert";
 import { Button } from "@calcom/ui/components/button";
 import { EmptyScreen } from "@calcom/ui/components/empty-screen";
-
+import { useSession } from "@lib/auth/supabaseNextAuthReact";
 import { TRPCClientError } from "@trpc/client";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 function ConnectAndJoin() {
   const { t } = useLocale();
@@ -24,7 +22,7 @@ function ConnectAndJoin() {
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
 
   const session = useSession();
-  const isUserPartOfOrg = session.status === "authenticated" && !!session.data.user?.org;
+  const isUserPartOfOrg = session.status === "authenticated" && !!session.data?.user?.org;
 
   const mutation = trpc.viewer.loggedInViewerRouter.connectAndJoin.useMutation({
     onSuccess: (res) => {

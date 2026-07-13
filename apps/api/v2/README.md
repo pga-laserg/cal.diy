@@ -38,6 +38,16 @@ $ yarn db-seed
 
 # Running api v2
 
+For AgendaCon's local port contract, use `yarn dev:local`. It loads the repository-root `.env`, gives the platform build enough Node heap, and starts API v2 at `http://localhost:5555`. Keep Cal.diy on `3001` and Companion Metro on `8082`.
+
+Companion calls API v2 directly with a Supabase access token. The legacy Cal OAuth browser flow is not part of the first-party mobile path.
+
+Set `SUPABASE_ACCESS_TOKEN` to a signed-in user's Supabase Auth session JWT (not a Supabase personal access token) and run `yarn smoke:supabase-auth` to verify the read-only Companion surface. It checks profile, event types, schedules, bookings, conferencing, and calendars without writing the token or user data to disk. When `127.0.0.1:5555` is occupied by an emulator, point the smoke test at the Mac's LAN API address instead:
+
+```bash
+SUPABASE_AUTH_SMOKE_API_URL=http://<mac-lan-ip>:5555/v2 yarn smoke:supabase-auth
+```
+
 Start api v2 using:
 ```bash
 $ yarn dev
@@ -86,4 +96,3 @@ $ yarn run test:cov
 2. In case a guard would return "false" for "canActivate" DO NOT cache the result in redis, because we don't want that someone is forbidden, updates whatever was the problem, and then has to wait for cache to expire. We only cache in redis guard results where "canAccess" is "true".
 3. If you use ApiAuthGuard but want that only specific auth method is allowed, for example, api key, then you also need to add `@ApiAuthGuardOnlyAllow(["API_KEY"])` under the `@UseGuards(ApiAuthGuard)`. Shortly, use `ApiAuthGuardOnlyAllow` to specify which auth methods are allowed by `ApiAuthGuard`. If `ApiAuthGuardOnlyAllow` is not used or nothing is passed to it or empty array it means that
 all auth methods are allowed.
-

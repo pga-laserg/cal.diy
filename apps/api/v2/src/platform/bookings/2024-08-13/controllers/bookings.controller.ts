@@ -81,7 +81,9 @@ import { UsersService } from "@/modules/users/services/users.service";
   path: "/v2/bookings",
   version: VERSION_2024_08_13_VALUE,
 })
-@UseGuards(PermissionsGuard)
+// Authenticate optional first so Supabase sessions can bypass legacy OAuth
+// permission lookup on the list endpoint.
+@UseGuards(OptionalApiAuthGuard, PermissionsGuard)
 @DocsTags("Bookings")
 @ApiHeader({
   name: "cal-api-version",

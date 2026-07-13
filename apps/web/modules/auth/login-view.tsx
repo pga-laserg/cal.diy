@@ -1,5 +1,6 @@
 "use client";
 
+import process from "node:process";
 import { ErrorCode } from "@calcom/features/auth/lib/ErrorCode";
 import { HOSTED_CAL_FEATURES, WEBAPP_URL, WEBSITE_URL } from "@calcom/lib/constants";
 import { emailRegex } from "@calcom/lib/emailSchema";
@@ -18,12 +19,12 @@ import { Input } from "@coss/ui/components/input";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@coss/ui/components/input-group";
 import { Separator } from "@coss/ui/components/separator";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { signIn } from "@lib/auth/supabaseNextAuthReact";
 import type { inferSSRProps } from "@lib/types/inferSSRProps";
 import type { getServerSideProps } from "@server/lib/auth/login/getServerSideProps";
 import { Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { signIn } from "next-auth/react";
 import { useEffect, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import { z } from "zod";
@@ -36,13 +37,9 @@ interface LoginValues {
   csrfToken: string;
 }
 
-const MicrosoftIcon = () => (
-  <img className="size-4" src="/microsoft-logo.svg" alt="" />
-);
+const MicrosoftIcon = () => <img className="size-4" src="/microsoft-logo.svg" alt="" />;
 
-const GoogleIcon = () => (
-  <img className="size-4" src="/google-icon-colored.svg" alt="" />
-);
+const GoogleIcon = () => <img className="size-4" src="/google-icon-colored.svg" alt="" />;
 
 function BackgroundGrid() {
   const rows = 9;
