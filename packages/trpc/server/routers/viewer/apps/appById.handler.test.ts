@@ -68,7 +68,7 @@ describe("appByIdHandler", () => {
       locationOption: LocationOption | null;
     } = {
       type: "daily_video",
-      name: "Cal Video",
+      name: "Daily Video",
       description: "Video conferencing",
       variant: "conferencing",
       slug: "daily-video",
@@ -84,13 +84,13 @@ describe("appByIdHandler", () => {
       credentials: [mockCredential],
       locationOption: {
         value: "integrations:daily",
-        label: "Cal Video",
+        label: "Daily Video",
       },
       appData: {
         location: {
           linkType: "dynamic",
           type: "integrations:daily",
-          label: "Cal Video",
+          label: "Daily Video",
         },
       },
     };
@@ -110,7 +110,7 @@ describe("appByIdHandler", () => {
 
     // Verify that other properties are preserved
     expect(result).toHaveProperty("slug", "daily-video");
-    expect(result).toHaveProperty("name", "Cal Video");
+    expect(result).toHaveProperty("name", "Daily Video");
     expect(result).toHaveProperty("isGlobal", true);
     expect(result).toHaveProperty("locationOption");
     expect(result).toHaveProperty("isInstalled", 1);

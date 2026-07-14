@@ -15,6 +15,7 @@ import {
 import { Injectable } from "@nestjs/common";
 
 import {
+  CAL_VIDEO,
   CONFERENCING_APPS,
   GOOGLE_MEET,
   ZOOM,
@@ -112,7 +113,9 @@ export class ConferencingService {
   }
 
   async setDefaultConferencingApp(user: UserWithProfile, app: string) {
-    await this.checkAppIsValidAndConnected(user, app);
+    if (app !== CAL_VIDEO) {
+      await this.checkAppIsValidAndConnected(user, app);
+    }
     const updatedUser = await this.usersRepository.setDefaultConferencingApp(user.id, app);
     const metadata = updatedUser.metadata as { defaultConferencingApp?: { appSlug?: string } };
     if (metadata?.defaultConferencingApp?.appSlug !== app) {

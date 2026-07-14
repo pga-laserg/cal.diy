@@ -33,7 +33,7 @@ export class CalVideoService {
 
     const roomName = this.getVideoSessionsRoomName(booking.references);
     if (!roomName) {
-      throw new NotFoundException(`No Cal Video reference found with booking uid ${bookingUid}`);
+      throw new NotFoundException(`No Daily Video reference found with booking uid ${bookingUid}`);
     }
 
     const recordings = await getRecordingsOfCalVideoByRoomName(roomName);
@@ -77,7 +77,7 @@ export class CalVideoService {
 
     const roomName = this.getVideoSessionsRoomName(booking.references);
     if (!roomName) {
-      throw new NotFoundException(`No Cal Video reference found with booking uid ${bookingUid}`);
+      throw new NotFoundException(`No Daily Video reference found with booking uid ${bookingUid}`);
     }
 
     const transcripts = await getAllTranscriptsAccessLinkFromRoomName(roomName);
@@ -93,7 +93,7 @@ export class CalVideoService {
 
     const roomName = this.getVideoSessionsRoomName(booking.references);
     if (!roomName) {
-      throw new NotFoundException(`No Cal Video reference found with booking uid ${bookingUid}`);
+      throw new NotFoundException(`No Daily Video reference found with booking uid ${bookingUid}`);
     }
 
     const sessions = await getCalVideoMeetingSessionsByRoomName(roomName);

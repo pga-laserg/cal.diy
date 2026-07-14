@@ -731,7 +731,7 @@ export const updateHandler = async ({ ctx, input }: UpdateOptions) => {
 
   // Determine calVideoSettings to pass to children:
   // - If calVideoSettings provided in input, sync to children
-  // - If Cal Video location removed, delete from children (pass null)
+  // - If Daily Video location removed, delete from children (pass null)
   // - Otherwise, leave children's settings untouched (pass undefined)
   let calVideoSettingsForChildren: typeof calVideoSettings | null | undefined;
   if (calVideoSettings !== undefined) {

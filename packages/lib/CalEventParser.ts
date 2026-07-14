@@ -201,7 +201,7 @@ export const getProviderName = (location?: string | null): string => {
   if (location && location.includes("integrations:")) {
     let locationName = location.split(":")[1];
     if (locationName === "daily") {
-      locationName = "Cal Video";
+      locationName = "Daily Video";
     }
     return locationName[0].toUpperCase() + locationName.slice(1);
   }

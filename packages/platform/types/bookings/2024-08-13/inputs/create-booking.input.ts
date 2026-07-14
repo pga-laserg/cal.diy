@@ -319,7 +319,7 @@ export class CreateBookingInput_2024_08_13 {
   @ApiProperty({
     type: String,
     description:
-      "Deprecated - use 'location' instead. Meeting URL just for this booking. Displayed in email and calendar event. If not provided then cal video link will be generated.",
+      "Deprecated - use 'location' instead. Meeting URL just for this booking. Displayed in email and calendar event. If not provided then a Daily Video link will be generated.",
     example: "https://example.com/meeting",
     required: false,
     deprecated: true,

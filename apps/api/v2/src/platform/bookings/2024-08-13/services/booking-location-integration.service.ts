@@ -149,11 +149,11 @@ export class BookingLocationIntegrationService_2024_08_13 {
 
     if (!meetingResult.createdEvent) {
       this.logger.error(
-        `Failed to create Cal Video meeting`,
+        `Failed to create Daily Video meeting`,
         JSON.stringify({ success: meetingResult.success, type: meetingResult.type })
       );
       throw new BadRequestException(
-        `Failed to create Cal Video meeting. Please ensure DAILY_API_KEY is set and the daily-video app is enabled.`
+        `Failed to create Daily Video meeting. Please ensure DAILY_API_KEY is set and the daily-video app is enabled.`
       );
     }
 

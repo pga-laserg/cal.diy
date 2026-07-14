@@ -292,9 +292,9 @@ export default class EventManager {
     // TODO this method shouldn't be modifying the event object that's passed in
     const evt = processLocation(event);
 
-    // Fallback to cal video if no location is set
+    // Fallback to Daily Video if no location is set
     if (!evt.location) {
-      // See if cal video is enabled & has keys
+      // See if Daily Video is enabled & has keys
       const calVideo = await prisma.app.findUnique({
         where: {
           slug: "daily-video",
@@ -308,13 +308,13 @@ export default class EventManager {
       const calVideoKeys = calVideoKeysSchema.safeParse(calVideo?.keys);
 
       if (calVideo?.enabled && calVideoKeys.success) evt["location"] = "integrations:daily";
-      log.warn("Falling back to cal video as no location is set");
+      log.warn("Falling back to Daily Video as no location is set");
     }
 
     const [mainHostDestinationCalendar] =
       (evt.destinationCalendar as [undefined | NonNullable<typeof evt.destinationCalendar>[number]]) ?? [];
 
-    // Fallback to Cal Video if Google Meet is selected w/o a Google Calendar connection
+    // Fallback to Daily Video if Google Meet is selected w/o a Google Calendar connection
     if (evt.location === MeetLocationType && mainHostDestinationCalendar?.integration !== "google_calendar") {
       const [googleCalendarCredential] = this.calendarCredentials.filter(
         (cred) => cred.type === "google_calendar"
@@ -323,7 +323,7 @@ export default class EventManager {
       // TODO: We could extend this logic to Regular Credentials also. Having a Google Calendar credential would cause fallback to use that credential to create calendar and thus we could have Google Meet link
       if (!isDelegationCredential({ credentialId: googleCalendarCredential?.id })) {
         log.warn(
-          "Falling back to Cal Video integration for Regular Credential as Google Calendar is not set as destination calendar"
+          "Falling back to Daily Video integration for Regular Credential as Google Calendar is not set as destination calendar"
         );
         evt["location"] = "integrations:daily";
         evt["conferenceCredentialId"] = undefined;
@@ -1055,7 +1055,7 @@ export default class EventManager {
     }
 
     /**
-     * This might happen if someone tries to use a location with a missing credential, so we fallback to Cal Video.
+     * This might happen if someone tries to use a location with a missing credential, so we fallback to Daily Video.
      * @todo remove location from event types that has missing credentials
      * */
     if (!videoCredential) {

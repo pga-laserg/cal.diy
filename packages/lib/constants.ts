@@ -267,7 +267,7 @@ export const RETELL_AI_TEST_EVENT_TYPE_MAP = (() => {
 export const ENV_PAST_BOOKING_RESCHEDULE_CHANGE_TEAM_IDS =
   process.env._CAL_INTERNAL_PAST_BOOKING_RESCHEDULE_CHANGE_TEAM_IDS;
 
-// Cal Video (Daily) app identifiers
+// Daily Video app identifiers
 export const CAL_VIDEO = "daily-video";
 export const CAL_VIDEO_TYPE = "daily_video";
 
