@@ -27,7 +27,7 @@ vi.mock("@calcom/lib/safeStringify", createSafeStringifyMock);
 vi.mock("next-auth/jwt", createGetTokenMock);
 
 import { getToken } from "next-auth/jwt";
-import { getServerSession } from "./getServerSession";
+import { getServerSession, invalidateCachedSessionsForUser } from "./getServerSession";
 
 type MockNextApiRequest = ReturnType<typeof createMocks<NextApiRequest>>["req"];
 
@@ -157,6 +157,20 @@ describe("getServerSession", () => {
         expect(whereClause).toHaveProperty("id");
         expect(whereClause).not.toHaveProperty("email");
       }
+    });
+  });
+
+  describe("Profile cache invalidation", () => {
+    it("reloads a user session after profile settings change", async () => {
+      const mockUser = createMockUser({ id: 987654 });
+      setupGetTokenMock(createMockToken({ sub: String(mockUser.id) }));
+      prismaMock.user.findUnique.mockResolvedValue(mockUser);
+
+      await getServerSession({ req: createMockRequest() });
+      invalidateCachedSessionsForUser(mockUser.id);
+      await getServerSession({ req: createMockRequest() });
+
+      expect(prismaMock.user.findUnique).toHaveBeenCalledTimes(2);
     });
   });
 });

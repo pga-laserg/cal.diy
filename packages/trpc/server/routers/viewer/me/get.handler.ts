@@ -34,56 +34,46 @@ export const getHandler = async ({ ctx, input }: MeOptions) => {
 
   const { user: sessionUser, session } = ctx;
 
-  const allUserEnrichedProfiles =
-    await ProfileRepository.findAllProfilesForUserIncludingMovedUser(sessionUser);
+  const [allUserEnrichedProfiles, user] = await Promise.all([
+    ProfileRepository.findAllProfilesForUserIncludingMovedUser(sessionUser),
+    new UserRepository(prisma).enrichUserWithTheProfile({
+      user: sessionUser,
+      upId: session.upId,
+    }),
+  ]);
 
-  const user = await new UserRepository(prisma).enrichUserWithTheProfile({
-    user: sessionUser,
-    upId: session.upId,
-  });
-
-  const secondaryEmails = await prisma.secondaryEmail.findMany({
-    where: {
+  const permissionCheckService = new PermissionCheckService();
+  const [secondaryEmails, userWithPassword, account, teamsWithWritePermission] = await Promise.all([
+    prisma.secondaryEmail.findMany({
+      where: { userId: user.id },
+      select: { id: true, email: true, emailVerified: true },
+    }),
+    user.identityProvider !== IdentityProvider.CAL && input?.includePasswordAdded
+      ? prisma.user.findUnique({
+          where: { id: user.id },
+          select: { password: true },
+        })
+      : Promise.resolve(null),
+    user.identityProviderId
+      ? prisma.account.findUnique({
+          where: {
+            provider_providerAccountId: {
+              provider: user.identityProvider === IdentityProvider.AZUREAD ? "azure-ad" : user.identityProvider.toLowerCase(),
+              providerAccountId: user.identityProviderId,
+            },
+          },
+          select: { providerEmail: true },
+        })
+      : Promise.resolve(null),
+    permissionCheckService.getTeamIdsWithPermission({
       userId: user.id,
-    },
-    select: {
-      id: true,
-      email: true,
-      emailVerified: true,
-    },
-  });
+      permission: "team.update",
+      fallbackRoles: [MembershipRole.ADMIN, MembershipRole.OWNER],
+    }),
+  ]);
 
-  let passwordAdded = false;
-  if (user.identityProvider !== IdentityProvider.CAL && input?.includePasswordAdded) {
-    const userWithPassword = await prisma.user.findUnique({
-      where: {
-        id: user.id,
-      },
-      select: {
-        password: true,
-      },
-    });
-    if (userWithPassword?.password?.hash) {
-      passwordAdded = true;
-    }
-  }
-
-  let identityProviderEmail = "";
-  if (user.identityProviderId) {
-    const account = await prisma.account.findUnique({
-      where: {
-        provider_providerAccountId: {
-          provider:
-            user.identityProvider === IdentityProvider.AZUREAD
-              ? "azure-ad"
-              : user.identityProvider.toLowerCase(),
-          providerAccountId: user.identityProviderId,
-        },
-      },
-      select: { providerEmail: true },
-    });
-    identityProviderEmail = account?.providerEmail || "";
-  }
+  const passwordAdded = Boolean(userWithPassword?.password?.hash);
+  const identityProviderEmail = account?.providerEmail || "";
 
   const userMetadataPrased = userMetadata.parse(user.metadata);
 
@@ -107,12 +97,6 @@ export const getHandler = async ({ ctx, input }: MeOptions) => {
         organizationSettings: user?.profile?.organization?.organizationSettings,
       };
 
-  const permissionCheckService = new PermissionCheckService();
-  const teamsWithWritePermission = await permissionCheckService.getTeamIdsWithPermission({
-    userId: user.id,
-    permission: "team.update",
-    fallbackRoles: [MembershipRole.ADMIN, MembershipRole.OWNER],
-  });
   const canUpdateTeams = teamsWithWritePermission.length > 0;
 
   return {

@@ -34,6 +34,18 @@ const log = logger.getSubLogger({ prefix: ["getServerSession"] });
  */
 const CACHE = new LRUCache<string, Session>({ max: 1000 });
 
+/**
+ * Profile mutations must invalidate this process-local cache so the next
+ * server render and /api/auth/session response reflect the saved user data.
+ */
+export function invalidateCachedSessionsForUser(userId: number): void {
+  for (const [cacheKey, session] of CACHE) {
+    if (Number(session.user.id) === userId) {
+      CACHE.delete(cacheKey);
+    }
+  }
+}
+
 type SessionToken = {
   belongsToActiveTeam?: boolean;
   email: string;

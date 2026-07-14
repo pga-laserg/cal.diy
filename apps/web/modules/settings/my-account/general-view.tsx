@@ -18,6 +18,7 @@ import { TimezoneSelect } from "@calcom/web/modules/timezone/components/Timezone
 import TravelScheduleModal from "@components/settings/TravelScheduleModal";
 import { useSession } from "@lib/auth/supabaseNextAuthReact";
 import { revalidateSettingsGeneral } from "app/(use-page-wrapper)/settings/(settings-layout)/my-account/general/actions";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 
@@ -56,30 +57,29 @@ const GeneralView = ({ user, travelSchedules }: GeneralViewProps) => {
     i18n: { language },
   } = useLocale();
   const { update } = useSession();
+  const router = useRouter();
   const [isUpdateBtnLoading, setIsUpdateBtnLoading] = useState<boolean>(false);
   const [isTZScheduleOpen, setIsTZScheduleOpen] = useState<boolean>(false);
 
   const mutation = trpc.viewer.me.updateProfile.useMutation({
-    onSuccess: async (res) => {
-      await utils.viewer.me.invalidate();
-      revalidateSettingsGeneral();
-      revalidateTravelSchedules();
+    onSuccess: (res) => {
       reset(getValues());
       showToast(t("settings_updated_successfully"), "success");
-      await update(res);
+      void update(res);
+      void utils.viewer.me.invalidate();
+      void revalidateSettingsGeneral();
+      void revalidateTravelSchedules();
 
-      if (res.locale) {
+      if (res.locale && res.locale !== localeProp) {
         window.calNewLocale = res.locale;
-        document.cookie = `calNewLocale=${res.locale}; path=/`;
+        document.cookie = `calNewLocale=${encodeURIComponent(res.locale)}; path=/; max-age=31536000; samesite=lax`;
+        router.refresh();
       }
     },
     onError: () => {
       showToast(t("error_updating_settings"), "error");
     },
-    onSettled: async () => {
-      await utils.viewer.me.invalidate();
-      revalidateSettingsGeneral();
-      revalidateTravelSchedules();
+    onSettled: () => {
       setIsUpdateBtnLoading(false);
     },
   });

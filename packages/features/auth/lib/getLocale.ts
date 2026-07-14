@@ -27,6 +27,14 @@ export const getLocale = async (
         headers: ReadonlyHeaders;
       }
 ): Promise<string> => {
+  const cookies = req.cookies;
+  const savedLocale =
+    typeof cookies.get === "function" ? cookies.get("calNewLocale")?.value : cookies.calNewLocale;
+
+  if (savedLocale) {
+    return lookup(i18n.locales, savedLocale) ?? "en";
+  }
+
   const token = await getToken({
     req: req as GetTokenParams["req"],
   });

@@ -125,10 +125,10 @@ const AppearanceView = ({
       document.documentElement.classList.contains("dark"));
 
   const mutation = trpc.viewer.me.updateProfile.useMutation({
-    onSuccess: async (data) => {
-      await utils.viewer.me.invalidate();
-      revalidateSettingsAppearance();
-      revalidateHasTeamPlan();
+    onSuccess: (data) => {
+      void utils.viewer.me.invalidate();
+      void revalidateSettingsAppearance();
+      void revalidateHasTeamPlan();
       showToast(t("settings_updated_successfully"), "success");
       resetBrandColorsThemeReset({ brandColor: data.brandColor, darkBrandColor: data.darkBrandColor });
       resetBookerLayoutThemeReset({ metadata: data.metadata });
@@ -141,11 +141,6 @@ const AppearanceView = ({
       } else {
         showToast(t("error_updating_settings"), "error");
       }
-    },
-    onSettled: async () => {
-      await utils.viewer.me.invalidate();
-      revalidateSettingsAppearance();
-      revalidateHasTeamPlan();
     },
   });
 

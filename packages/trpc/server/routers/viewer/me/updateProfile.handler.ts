@@ -1,5 +1,6 @@
 import { getPremiumMonthlyPlanPriceId } from "@calcom/app-store/stripepayment/lib/utils";
 import { sendChangeOfEmailVerification } from "@calcom/features/auth/lib/verifyEmail";
+import { invalidateCachedSessionsForUser } from "@calcom/features/auth/lib/getServerSession";
 import { FeaturesRepository } from "@calcom/features/flags/features.repository";
 import { checkUsername } from "@calcom/features/profile/lib/checkUsername";
 import { ScheduleRepository } from "@calcom/features/schedules/repositories/ScheduleRepository";
@@ -279,6 +280,8 @@ export const updateProfileHandler = async ({ ctx, input }: UpdateProfileOptions)
     }
     throw e; // make sure other errors are rethrown
   }
+
+  invalidateCachedSessionsForUser(user.id);
 
   if (user.timeZone !== data.timeZone && updatedUser.schedules.length > 0) {
     // on timezone change update timezone of default schedule
