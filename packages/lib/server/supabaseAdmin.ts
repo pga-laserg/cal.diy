@@ -6,7 +6,7 @@ type SupabaseAdminClient = ReturnType<typeof createClient>;
 
 let supabaseAdminClient: SupabaseAdminClient | null = null;
 
-function getSupabaseAdminClient(): SupabaseAdminClient {
+export function getSupabaseAdminClient(): SupabaseAdminClient {
   if (supabaseAdminClient) {
     return supabaseAdminClient;
   }
@@ -28,13 +28,7 @@ function getSupabaseAdminClient(): SupabaseAdminClient {
   return supabaseAdminClient;
 }
 
-export async function updateSupabasePasswordForCalUser({
-  calUserId,
-  password,
-}: {
-  calUserId: number;
-  password: string;
-}) {
+async function getSupabaseAuthUserId(calUserId: number): Promise<string> {
   const rows = await prisma.$queryRaw<Array<{ auth_user_id: string | null }>>`
     select auth_user_id::text
     from public.users
@@ -47,9 +41,39 @@ export async function updateSupabasePasswordForCalUser({
     throw new Error("SUPABASE_AUTH_MAPPING_MISSING");
   }
 
+  return authUserId;
+}
+
+export async function updateSupabasePasswordForCalUser({
+  calUserId,
+  password,
+}: {
+  calUserId: number;
+  password: string;
+}) {
+  const authUserId = await getSupabaseAuthUserId(calUserId);
+
   const { error } = await getSupabaseAdminClient().auth.admin.updateUserById(authUserId, { password });
 
   if (error) {
     throw error;
   }
+}
+
+export async function syncSupabaseMfaStatusForCalUser(calUserId: number) {
+  const authUserId = await getSupabaseAuthUserId(calUserId);
+  const { data, error } = await getSupabaseAdminClient().auth.admin.mfa.listFactors({ userId: authUserId });
+
+  if (error) {
+    throw error;
+  }
+
+  const twoFactorEnabled = data.factors.some((factor) => factor.status === "verified");
+
+  await prisma.user.update({
+    where: { id: calUserId },
+    data: { twoFactorEnabled },
+  });
+
+  return { twoFactorEnabled };
 }

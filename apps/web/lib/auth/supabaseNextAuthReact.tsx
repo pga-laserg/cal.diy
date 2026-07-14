@@ -49,7 +49,7 @@ const SessionContext: Context<SessionContextValue | undefined> = createContext<
 
 let supabaseBrowserClient: SupabaseClient | null = null;
 
-function getSupabaseBrowserClient(): SupabaseClient | null {
+export function getSupabaseBrowserClient(): SupabaseClient | null {
   if (supabaseBrowserClient) {
     return supabaseBrowserClient;
   }
@@ -200,13 +200,10 @@ export async function getProviders() {
   };
 }
 
-async function verifyCalCredentials(options: SignInOptions) {
+async function verifyCalAccount(email: string) {
   const response = await fetch("/api/auth/supabase/credentials", {
     body: JSON.stringify({
-      backupCode: options.backupCode,
-      email: options.email,
-      password: options.password,
-      totpCode: options.totpCode,
+      email,
     }),
     credentials: "include",
     headers: {
@@ -244,7 +241,7 @@ export async function signIn<ProviderId extends string = string>(
     const email = typeof options.email === "string" ? options.email : "";
     const password = typeof options.password === "string" ? options.password : "";
 
-    const credentialError = await verifyCalCredentials(options);
+    const credentialError = await verifyCalAccount(email);
     if (credentialError) {
       return {
         error: credentialError,
@@ -263,6 +260,44 @@ export async function signIn<ProviderId extends string = string>(
         status: error.status || 401,
         url: null,
       };
+    }
+
+    const { data: assurance, error: assuranceError } =
+      await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    const needsSecondFactor =
+      !assuranceError && assurance.nextLevel === "aal2" && assurance.currentLevel !== "aal2";
+
+    if (needsSecondFactor) {
+      const totpCode = typeof options.totpCode === "string" ? options.totpCode : "";
+      if (!totpCode) {
+        await supabase.auth.signOut();
+        return { error: ErrorCode.SecondFactorRequired, ok: false, status: 401, url: null };
+      }
+
+      const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors();
+      const factor = factors?.totp.find((candidate) => candidate.status === "verified");
+      if (factorsError || !factor) {
+        await supabase.auth.signOut();
+        return { error: ErrorCode.InternalServerError, ok: false, status: 500, url: null };
+      }
+
+      const { data: challenge, error: challengeError } = await supabase.auth.mfa.challenge({
+        factorId: factor.id,
+      });
+      if (challengeError || !challenge) {
+        await supabase.auth.signOut();
+        return { error: ErrorCode.InternalServerError, ok: false, status: 500, url: null };
+      }
+
+      const { error: verifyError } = await supabase.auth.mfa.verify({
+        factorId: factor.id,
+        challengeId: challenge.id,
+        code: totpCode,
+      });
+      if (verifyError) {
+        await supabase.auth.signOut();
+        return { error: ErrorCode.IncorrectTwoFactorCode, ok: false, status: 401, url: null };
+      }
     }
 
     if (options.redirect !== false && typeof window !== "undefined") {

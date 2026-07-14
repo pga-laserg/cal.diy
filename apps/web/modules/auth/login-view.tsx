@@ -8,10 +8,8 @@ import { getSafeRedirectUrl } from "@calcom/lib/getSafeRedirectUrl";
 import { useCompatSearchParams } from "@calcom/lib/hooks/useCompatSearchParams";
 import { useLocale } from "@calcom/lib/hooks/useLocale";
 import { Alert } from "@calcom/ui/components/alert";
-import { Icon } from "@calcom/ui/components/icon";
 import { LastUsed, useLastUsed } from "@calcom/web/modules/auth/hooks/useLastUsed";
 import AddToHomescreen from "@components/AddToHomescreen";
-import BackupCode from "@components/auth/BackupCode";
 import TwoFactor from "@components/auth/TwoFactor";
 import { Button } from "@coss/ui/components/button";
 import { Field, FieldLabel } from "@coss/ui/components/field";
@@ -33,7 +31,6 @@ interface LoginValues {
   email: string;
   password: string;
   totpCode: string;
-  backupCode: string;
   csrfToken: string;
 }
 
@@ -120,7 +117,6 @@ export default function Login({
   const methods = useForm<LoginValues>({ resolver: zodResolver(formSchema) });
   const { register, formState } = methods;
   const [twoFactorRequired, setTwoFactorRequired] = useState(!!totpEmail || false);
-  const [twoFactorLostAccess, setTwoFactorLostAccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [lastUsed, setLastUsed] = useLastUsed();
   const [showPassword, setShowPassword] = useState(false);
@@ -161,8 +157,6 @@ export default function Login({
       setLastUsed("credentials");
       router.push(callbackUrl);
     } else if (res.error === ErrorCode.SecondFactorRequired) setTwoFactorRequired(true);
-    else if (res.error === ErrorCode.IncorrectBackupCode) setErrorMessage(t("incorrect_backup_code"));
-    else if (res.error === ErrorCode.MissingBackupCodes) setErrorMessage(t("missing_backup_codes"));
     // fallback if error not found
     else setErrorMessage(errorMessages[res.error] || t("something_went_wrong"));
   };
@@ -298,7 +292,7 @@ export default function Login({
               {/* Two Factor */}
               {twoFactorRequired && (
                 <div className="space-y-4">
-                  {!twoFactorLostAccess ? <TwoFactor center /> : <BackupCode center />}
+                  <TwoFactor center />
                 </div>
               )}
 
@@ -319,35 +313,15 @@ export default function Login({
             {twoFactorRequired && (
               <div className="mt-4 flex justify-center gap-4">
                 {!totpEmail ? (
-                  <>
-                    <Button
-                      variant="ghost"
-                      onClick={() => {
-                        if (twoFactorLostAccess) {
-                          setTwoFactorLostAccess(false);
-                          methods.setValue("backupCode", "");
-                        } else {
-                          setTwoFactorRequired(false);
-                          methods.setValue("totpCode", "");
-                        }
-                        setErrorMessage(null);
-                      }}>
-                      <Icon name="arrow-left" className="mr-2 size-4" />
-                      {t("go_back")}
-                    </Button>
-                    {!twoFactorLostAccess && (
-                      <Button
-                        variant="ghost"
-                        onClick={() => {
-                          setTwoFactorLostAccess(true);
-                          setErrorMessage(null);
-                          methods.setValue("totpCode", "");
-                        }}>
-                        <Icon name="lock" className="mr-2 size-4" />
-                        {t("lost_access")}
-                      </Button>
-                    )}
-                  </>
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setTwoFactorRequired(false);
+                      methods.setValue("totpCode", "");
+                      setErrorMessage(null);
+                    }}>
+                    {t("go_back")}
+                  </Button>
                 ) : (
                   <Button
                     variant="ghost"
