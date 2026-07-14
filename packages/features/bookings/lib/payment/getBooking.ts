@@ -27,6 +27,7 @@ async function getEventType(id: number) {
       id: true,
       recurringEvent: true,
       requiresConfirmation: true,
+      title: true,
       metadata: true,
     },
   });

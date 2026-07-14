@@ -8,6 +8,13 @@ import { WEBAPP_URL } from "@calcom/lib/constants";
 
 dotEnv.config({ path: ".env" });
 
+const PLAYWRIGHT_WEBAPP_URL =
+  process.env.PLAYWRIGHT_WEBAPP_URL ?? process.env.NEXT_PUBLIC_WEBAPP_URL ?? "http://localhost:3000";
+const PLAYWRIGHT_WEBAPP_PORT = Number(new URL(PLAYWRIGHT_WEBAPP_URL).port || 3000);
+const appServerCommand = process.env.CI
+  ? `yarn workspace @calcom/web start -p ${PLAYWRIGHT_WEBAPP_PORT}`
+  : `yarn workspace @calcom/web dev -p ${PLAYWRIGHT_WEBAPP_PORT}`;
+
 const outputDir = path.join(__dirname, "test-results");
 
 // Dev Server on local can be slow to start up and process requests. So, keep timeouts really high on local, so that tests run reliably locally
@@ -29,9 +36,8 @@ const IS_EMBED_REACT_TEST = process.argv.some((a) => a.startsWith("--project=@ca
 // Suppress all webServer logs to reduce noise during E2E tests
 const webServer: PlaywrightTestConfig["webServer"] = [
   {
-    command:
-      "yarn workspace @calcom/web copy-app-store-static && NEXT_PUBLIC_IS_E2E=1 NODE_OPTIONS='--dns-result-order=ipv4first' yarn workspace @calcom/web start -p 3000",
-    port: 3000,
+    command: `yarn workspace @calcom/web copy-app-store-static && NEXT_PUBLIC_IS_E2E=1 NODE_OPTIONS='--dns-result-order=ipv4first' ${appServerCommand}`,
+    port: PLAYWRIGHT_WEBAPP_PORT,
     timeout: 60_000,
     reuseExistingServer: !process.env.CI,
     stdout: "ignore",
@@ -108,7 +114,7 @@ const config: PlaywrightTestConfig = {
   outputDir: path.join(outputDir, "results"),
   webServer,
   use: {
-    baseURL: process.env.NEXT_PUBLIC_WEBAPP_URL,
+    baseURL: PLAYWRIGHT_WEBAPP_URL,
     locale: "en-US",
     trace: "retain-on-failure",
     headless,
@@ -336,6 +342,6 @@ function ensureAppServerIsReadyToServeEmbed(webServer: { port?: number; url?: st
   // We shouldn't depend on an embed dependency for App's tests. So, conditionally modify App webServer.
   // Only one of port or url can be specified, so remove port.
   delete webServer.port;
-  webServer.url = `${process.env.NEXT_PUBLIC_WEBAPP_URL}/embed/embed.js`;
+  webServer.url = `${PLAYWRIGHT_WEBAPP_URL}/embed/embed.js`;
   console.log("Ensuring that /embed/embed.js is 200 before starting tests");
 }

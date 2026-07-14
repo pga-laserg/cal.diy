@@ -23,7 +23,7 @@ const OAuthClientsView = () => {
   const [submittedClient, setSubmittedClient] = useState<OAuthClientDetails | null>(null);
   const [selectedClient, setSelectedClient] = useState<OAuthClientDetails | null>(null);
 
-  const { data: oAuthClients, isLoading } = trpc.viewer.oAuth.listUserClients.useQuery();
+  const { data: oAuthClients, isLoading, isError, refetch } = trpc.viewer.oAuth.listUserClients.useQuery();
 
   const submitForReviewMutation = trpc.viewer.oAuth.submitClientForReview.useMutation({
     onSuccess: async (data) => {
@@ -102,6 +102,21 @@ const OAuthClientsView = () => {
 
   if (isLoading) {
     return <OAuthClientsSkeleton />;
+  }
+
+  if (isError) {
+    return (
+      <SettingsHeader
+        title={t("oauth_clients")}
+        description={t("oauth_clients_description")}
+        borderInShellHeader={true}>
+        <div className="border-subtle rounded-b-lg border border-t-0 px-6 py-5">
+          <button className="text-sm font-medium underline" onClick={() => void refetch()}>
+            {t("retry")}
+          </button>
+        </div>
+      </SettingsHeader>
+    );
   }
 
   const newOAuthClientButton = (

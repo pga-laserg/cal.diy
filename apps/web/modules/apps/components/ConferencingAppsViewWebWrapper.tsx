@@ -193,12 +193,25 @@ export const ConferencingAppsViewWebWrapper = ({
   defaultConferencingApp,
   eventTypes,
 }: {
-  integrations: IntegrationsOutput;
-  defaultConferencingApp: DefaultConferencingApp;
-  eventTypes: EventTypesList;
+  integrations?: IntegrationsOutput;
+  defaultConferencingApp?: DefaultConferencingApp;
+  eventTypes?: EventTypesList;
 }) => {
   const { t } = useLocale();
   const utils = trpc.useUtils();
+  const integrationsQuery = trpc.viewer.apps.integrations.useQuery(
+    { variant: "conferencing", onlyInstalled: true },
+    { enabled: !integrations }
+  );
+  const defaultConferencingAppQuery = trpc.viewer.apps.getUsersDefaultConferencingApp.useQuery(undefined, {
+    enabled: defaultConferencingApp === undefined,
+  });
+  const eventTypesQuery = trpc.viewer.eventTypes.bulkEventFetch.useQuery(undefined, {
+    enabled: !eventTypes,
+  });
+  const installedIntegrations = integrations ?? integrationsQuery.data;
+  const userDefaultConferencingApp = defaultConferencingApp ?? defaultConferencingAppQuery.data;
+  const availableEventTypes = eventTypes ?? eventTypesQuery.data?.eventTypes ?? [];
 
   const deleteCredentialMutation = trpc.viewer.credentials.delete.useMutation();
 
@@ -222,6 +235,39 @@ export const ConferencingAppsViewWebWrapper = ({
 
   const disconnectIntegrationModalCtrl = useDisconnectIntegrationModalController();
 
+  if (integrationsQuery.isError || defaultConferencingAppQuery.isError || eventTypesQuery.isError) {
+    return (
+      <SettingsHeader
+        title={t("conferencing")}
+        description={t("conferencing_description")}
+        CTA={<AddConferencingButton />}
+        borderInShellHeader={true}>
+        <EmptyScreen
+          Icon="calendar"
+          headline={t("something_went_wrong")}
+          description={t("try_again")}
+          buttonRaw={
+            <Button
+              color="secondary"
+              onClick={() => {
+                void Promise.all([
+                  integrationsQuery.refetch(),
+                  defaultConferencingAppQuery.refetch(),
+                  eventTypesQuery.refetch(),
+                ]);
+              }}>
+              {t("retry")}
+            </Button>
+          }
+        />
+      </SettingsHeader>
+    );
+  }
+
+  if (!installedIntegrations || defaultConferencingAppQuery.isPending || eventTypesQuery.isPending) {
+    return <SkeletonLoader />;
+  }
+
   return (
     <SettingsHeader
       title={t("conferencing")}
@@ -232,9 +278,9 @@ export const ConferencingAppsViewWebWrapper = ({
         <div className="bg-default w-full sm:mx-0 xl:mt-0">
           <InstalledConferencingApps
             disconnectIntegrationModalCtrl={disconnectIntegrationModalCtrl}
-            integrations={integrations}
-            defaultConferencingApp={defaultConferencingApp}
-            eventTypes={eventTypes}
+            integrations={installedIntegrations}
+            defaultConferencingApp={userDefaultConferencingApp}
+            eventTypes={availableEventTypes}
           />
         </div>
         <DisconnectIntegrationModal

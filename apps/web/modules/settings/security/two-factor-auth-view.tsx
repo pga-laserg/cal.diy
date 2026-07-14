@@ -37,14 +37,18 @@ const TwoFactorAuthView = () => {
   const { t } = useLocale();
   const [enabled, setEnabled] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [isWorking, setIsWorking] = useState(false);
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
   const [disableFactorId, setDisableFactorId] = useState<string | null>(null);
   const [code, setCode] = useState("");
 
   const loadFactors = async () => {
+    setIsLoading(true);
+    setLoadFailed(false);
     const supabase = getSupabaseBrowserClient();
     if (!supabase) {
+      setLoadFailed(true);
       setIsLoading(false);
       return;
     }
@@ -52,6 +56,7 @@ const TwoFactorAuthView = () => {
     const { data, error } = await supabase.auth.mfa.listFactors();
     if (error) {
       showToast(t("something_went_wrong"), "error");
+      setLoadFailed(true);
       setIsLoading(false);
       return;
     }
@@ -177,6 +182,16 @@ const TwoFactorAuthView = () => {
   };
 
   if (isLoading) return <SkeletonLoader />;
+
+  if (loadFailed) {
+    return (
+      <div className="border-subtle rounded-b-lg border border-t-0 px-6 py-5">
+        <Button color="secondary" onClick={() => void loadFactors()}>
+          {t("retry")}
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <>

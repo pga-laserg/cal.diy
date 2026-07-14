@@ -21,8 +21,8 @@ import { Suspense, useEffect } from "react";
 import { DestinationCalendarSettingsWebWrapper } from "./DestinationCalendarSettingsWebWrapper";
 
 type CalendarListContainerProps = {
-  connectedCalendars: RouterOutputs["viewer"]["calendars"]["connectedCalendars"];
-  installedCalendars: RouterOutputs["viewer"]["apps"]["integrations"];
+  connectedCalendars?: RouterOutputs["viewer"]["calendars"]["connectedCalendars"];
+  installedCalendars?: RouterOutputs["viewer"]["apps"]["integrations"];
   heading?: boolean;
   fromOnboarding?: boolean;
 };
@@ -99,6 +99,16 @@ export function CalendarListContainer({
 }: CalendarListContainerProps): JSX.Element {
   const { t } = useLocale();
   const { error, setQuery: setError } = useRouterQuery("error");
+  const connectedCalendarsQuery = trpc.viewer.calendars.connectedCalendars.useQuery(
+    { skipSync: true },
+    { enabled: !data }
+  );
+  const installedCalendarsQuery = trpc.viewer.apps.integrations.useQuery(
+    { variant: "calendar", onlyInstalled: true },
+    { enabled: !installedCalendars }
+  );
+  const connectedCalendars = data ?? connectedCalendarsQuery.data;
+  const availableInstalledCalendars = installedCalendars ?? installedCalendarsQuery.data;
 
   useEffect(() => {
     if (error === "account_already_linked" || error === "no_default_calendar") {
@@ -127,20 +137,48 @@ export function CalendarListContainer({
     },
   });
 
+  if (connectedCalendarsQuery.isError || installedCalendarsQuery.isError) {
+    return (
+      <SettingsHeader
+        title={t("calendars")}
+        description={t("calendars_description")}
+        CTA={<AddCalendarButton />}>
+        <EmptyScreen
+          Icon="calendar"
+          headline={t("something_went_wrong")}
+          description={t("try_again")}
+          buttonRaw={
+            <Button
+              color="secondary"
+              onClick={() => {
+                void Promise.all([connectedCalendarsQuery.refetch(), installedCalendarsQuery.refetch()]);
+              }}>
+              {t("retry")}
+            </Button>
+          }
+        />
+      </SettingsHeader>
+    );
+  }
+
+  if (!connectedCalendars || !availableInstalledCalendars) {
+    return <CalendarListContainerSkeletonLoader />;
+  }
+
   let content = null;
-  if (!!data.connectedCalendars.length || !!installedCalendars?.items.length) {
+  if (!!connectedCalendars.connectedCalendars.length || !!availableInstalledCalendars.items.length) {
     let headingContent = null;
     if (heading) {
       headingContent = (
         <>
-          <DestinationCalendarSettingsWebWrapper connectedCalendars={data} />
+          <DestinationCalendarSettingsWebWrapper connectedCalendars={connectedCalendars} />
           <Suspense fallback={<SkeletonLoader />}>
             <SelectedCalendarsSettingsWebWrapper
               onChanged={onChanged}
               fromOnboarding={fromOnboarding}
-              destinationCalendarId={data.destinationCalendar?.externalId}
+              destinationCalendarId={connectedCalendars.destinationCalendar?.externalId}
               isPending={mutation.isPending}
-              connectedCalendars={data}
+              connectedCalendars={connectedCalendars}
             />
           </Suspense>
         </>
@@ -150,7 +188,7 @@ export function CalendarListContainer({
   } else if (fromOnboarding) {
     content = (
       <>
-        {!!data?.connectedCalendars.length && (
+        {!!connectedCalendars.connectedCalendars.length && (
           <ShellSubHeading
             className="mt-4"
             title={<SubHeadingTitleWithConnections title={t("connect_additional_calendar")} />}

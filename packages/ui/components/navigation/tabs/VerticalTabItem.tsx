@@ -74,7 +74,7 @@ const VerticalTabItem = ({
               (isChild || !props.icon) && "ml-7",
               props.className
             )}
-            data-testid={`vertical-tab-${props["data-testid"]}`}
+            data-testid={`vertical-tab-${props["data-testid"] ?? href}`}
             aria-current={isCurrent ? "page" : undefined}>
             {props.icon && (
               <Icon

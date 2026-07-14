@@ -10,6 +10,7 @@ import type { CreationSource, IdentityProvider, UserPermissionRole } from "@calc
 import { createClient } from "@supabase/supabase-js";
 
 type SupabaseBackedCalUserInput = {
+  completedOnboarding?: boolean;
   email: string;
   emailVerified?: Date | null;
   hashedPassword?: string;
@@ -119,8 +120,8 @@ function createSupabaseAdminClient() {
   });
 }
 
-async function waitForCalUser({ authUserId, email }: { authUserId: string; email: string }) {
-  for (let attempt = 0; attempt < 5; attempt += 1) {
+async function waitForCalUser(authUserId: string) {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
     const rows = await prisma.$queryRaw<Array<{ id: bigint | number }>>`
       select id
       from public.users
@@ -130,15 +131,6 @@ async function waitForCalUser({ authUserId, email }: { authUserId: string; email
 
     if (rows[0]) {
       return Number(rows[0].id);
-    }
-
-    const userByEmail = await prisma.user.findUnique({
-      where: { email },
-      select: { id: true },
-    });
-
-    if (userByEmail) {
-      return userByEmail.id;
     }
 
     await new Promise((resolve) => setTimeout(resolve, 150));
@@ -219,7 +211,7 @@ export async function createSupabaseBackedCalUser(input: SupabaseBackedCalUserIn
   }
 
   try {
-    const userId = await waitForCalUser({ authUserId, email: input.email });
+    const userId = await waitForCalUser(authUserId);
 
     if (!userId) {
       throw new Error("Supabase Auth user was created but no mapped Cal user was found");
@@ -227,9 +219,10 @@ export async function createSupabaseBackedCalUser(input: SupabaseBackedCalUserIn
 
     await ensureDefaultSchedule(userId);
 
-    return prisma.user.update({
+    const user = await prisma.user.update({
       where: { id: userId },
       data: {
+        completedOnboarding: input.completedOnboarding ?? true,
         emailVerified: input.emailVerified,
         locale: input.locale,
         metadata: input.metadata,
@@ -238,6 +231,8 @@ export async function createSupabaseBackedCalUser(input: SupabaseBackedCalUserIn
       },
       select: { id: true },
     });
+
+    return { ...user, authUserId };
   } catch (error) {
     await supabaseAdmin.auth.admin.deleteUser(authUserId);
     throw error;

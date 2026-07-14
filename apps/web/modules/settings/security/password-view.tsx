@@ -288,9 +288,24 @@ const PasswordView = ({ user }: PasswordViewProps) => {
 };
 
 const PasswordViewWrapper = () => {
-  const { data: user, isPending } = trpc.viewer.me.get.useQuery({ includePasswordAdded: true });
+  const {
+    data: user,
+    isPending,
+    isError,
+    refetch,
+  } = trpc.viewer.me.get.useQuery({ includePasswordAdded: true });
   const { t } = useLocale();
-  if (isPending || !user) return <SkeletonLoader />;
+  if (isPending) return <SkeletonLoader />;
+
+  if (isError || !user) {
+    return (
+      <div className="border-subtle rounded-b-lg border border-t-0 px-6 py-5">
+        <Button color="secondary" onClick={() => void refetch()}>
+          {t("retry")}
+        </Button>
+      </div>
+    );
+  }
 
   return <PasswordView user={user} />;
 };

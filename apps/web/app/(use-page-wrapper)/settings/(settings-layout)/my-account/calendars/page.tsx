@@ -1,8 +1,4 @@
-import { createRouterCaller } from "app/_trpc/context";
 import { _generateMetadata } from "app/_utils";
-
-import { appsRouter } from "@calcom/trpc/server/routers/viewer/apps/_router";
-import { calendarsRouter } from "@calcom/trpc/server/routers/viewer/calendars/_router";
 
 import { CalendarListContainer } from "@components/apps/CalendarListContainer";
 
@@ -15,22 +11,9 @@ export const generateMetadata = async () =>
     "/settings/my-account/calendars"
   );
 
-const Page = async () => {
-  const [calendarsCaller, appsCaller] = await Promise.all([
-    createRouterCaller(calendarsRouter),
-    createRouterCaller(appsRouter),
-  ]);
-
-  const [connectedCalendars, installedCalendars] = await Promise.all([
-    calendarsCaller.connectedCalendars(),
-    appsCaller.integrations({
-      variant: "calendar",
-      onlyInstalled: true,
-    }),
-  ]);
-  return (
-    <CalendarListContainer connectedCalendars={connectedCalendars} installedCalendars={installedCalendars} />
-  );
+const Page = () => {
+  // Calendar provider sync happens after the settings shell has rendered.
+  return <CalendarListContainer />;
 };
 
 export default Page;

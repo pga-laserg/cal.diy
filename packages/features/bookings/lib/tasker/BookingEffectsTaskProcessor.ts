@@ -17,6 +17,7 @@ import logger from "@calcom/lib/logger";
 import { safeStringify } from "@calcom/lib/safeStringify";
 import type { TraceContext } from "@calcom/lib/tracing";
 import prisma, { type PrismaTransaction } from "@calcom/prisma";
+import type { Prisma } from "@calcom/prisma/client";
 
 type BookingEffectKind =
   | "calendar_create"
@@ -224,6 +225,9 @@ export class BookingEffectsTaskProcessor {
           const booking = bookingContext.booking;
           const evt = bookingContext.evt;
           const eventType = bookingContext.eventType;
+          if (!booking.user || !eventType.title) {
+            throw new Error(`Booking ${bookingId} is missing its event owner or event type title`);
+          }
           const eventTypeMetadata = (eventTypeMetaDataSchemaWithTypedApps.parse(
             eventType.metadata ?? {}
           ) ?? {}) as EventTypeMetadataWithApps;
@@ -377,7 +381,7 @@ export class BookingEffectsTaskProcessor {
               const payment = await handlePayment({
                 evt,
                 selectedEventType: {
-                  metadata: eventTypeMetadata,
+                  metadata: eventTypeMetadata as Prisma.JsonValue,
                   title: eventType.title,
                 },
                 paymentAppCredentials,

@@ -4,6 +4,7 @@ import { UserRepository } from "@calcom/features/users/repositories/UserReposito
 import { markdownToSafeHTML } from "@calcom/lib/markdownToSafeHTML";
 import prisma from "@calcom/prisma";
 import type { MembershipRole } from "@calcom/prisma/enums";
+import type { UserProfile } from "@calcom/types/UserProfile";
 import { PeriodType } from "@calcom/prisma/enums";
 import type { CustomInputSchema } from "@calcom/prisma/zod-utils";
 import { EventTypeMetaDataSchema } from "@calcom/prisma/zod-utils";
@@ -23,7 +24,10 @@ class PermissionCheckService {
 type EventType = Awaited<ReturnType<EventTypeRepository["findAllByUpId"]>>[number];
 
 type EventTypeUser = EventType["users"][number];
-type EnrichedEventTypeUser = Awaited<ReturnType<UserRepository["enrichUserWithItsProfile"]>>;
+type EnrichedEventTypeUser = EventTypeUser & {
+  nonProfileUsername: string | null;
+  profile: UserProfile;
+};
 
 function collectEventTypeUsers(eventTypes: EventType[]): EventTypeUser[] {
   return eventTypes.flatMap((eventType) => [
@@ -34,7 +38,7 @@ function collectEventTypeUsers(eventTypes: EventType[]): EventTypeUser[] {
 
 async function enrichEventTypeUsers(eventTypes: EventType[]): Promise<Map<number, EnrichedEventTypeUser>> {
   const users = collectEventTypeUsers(eventTypes);
-  const uniqueUsers = [...new Map(users.map((user) => [user.id, user])).values()];
+  const uniqueUsers = Array.from(new Map(users.map((user) => [user.id, user])).values());
 
   if (uniqueUsers.length === 0) {
     return new Map();
@@ -43,33 +47,30 @@ async function enrichEventTypeUsers(eventTypes: EventType[]): Promise<Map<number
   const profiles = await ProfileRepository.findManyForUsers(uniqueUsers.map((user) => user.id));
   const profileByUserId = new Map(profiles.map((profile) => [profile.userId, profile]));
 
-  return new Map(
-    uniqueUsers.map((user) => {
-      const profile = profileByUserId.get(user.id);
-      const isPlatformProfile = profile?.organization?.isPlatform;
+  const enrichedUsers = new Map<number, EnrichedEventTypeUser>();
 
-      if (!profile || isPlatformProfile) {
-        return [
-          user.id,
-          {
-            ...user,
-            nonProfileUsername: user.username,
-            profile: ProfileRepository.buildPersonalProfileFromUser({ user }),
-          },
-        ];
-      }
+  uniqueUsers.forEach((user) => {
+    const profile = profileByUserId.get(user.id);
+    const isPlatformProfile = profile?.organization?.isPlatform;
 
-      return [
-        user.id,
-        {
-          ...user,
-          username: profile.username,
-          nonProfileUsername: user.username,
-          profile,
-        },
-      ];
-    })
-  );
+    if (!profile || isPlatformProfile) {
+      enrichedUsers.set(user.id, {
+        ...user,
+        nonProfileUsername: user.username,
+        profile: ProfileRepository.buildPersonalProfileFromUser({ user }),
+      });
+      return;
+    }
+
+    enrichedUsers.set(user.id, {
+      ...user,
+      username: profile.username,
+      nonProfileUsername: user.username,
+      profile,
+    });
+  });
+
+  return enrichedUsers;
 }
 
 export const eventOwnerProcedure = authedProcedure

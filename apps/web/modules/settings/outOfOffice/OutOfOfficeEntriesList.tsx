@@ -110,7 +110,7 @@ function OutOfOfficeEntriesListContent({
 
   const endDateRange = useFilterValue("dateRange", ZDateRangeFilterValue)?.data;
 
-  const { data, isPending, fetchNextPage, isFetching, refetch, hasNextPage } =
+  const { data, isPending, isError, fetchNextPage, isFetching, refetch, hasNextPage } =
     trpc.viewer.ooo.outOfOfficeEntriesList.useInfiniteQuery(
       {
         limit: 10,
@@ -321,60 +321,73 @@ function OutOfOfficeEntriesListContent({
 
   return (
     <>
-      <DataTableWrapper
-        testId="ooo-list-data-table"
-        rowClassName=""
-        table={table}
-        isPending={isPending}
-        hasNextPage={hasNextPage}
-        fetchNextPage={fetchNextPage}
-        isFetching={isFetching}
-        totalRowCount={totalRowCount}
-        tableContainerRef={tableContainerRef}
-        paginationMode="infinite"
-        ToolbarLeft={
-          <>
-            <DataTableToolbar.SearchBar />
-            <DataTableFilters.FilterBar table={table} />
-          </>
-        }
-        ToolbarRight={
-          <>
-            <DataTableFilters.ClearFiltersButton />
-            <DataTableSegment.SaveButton />
-            <DataTableSegment.Select />
-          </>
-        }
-        EmptyView={
-          <EmptyScreen
-            className="mt-6"
-            headline={searchTerm ? t("no_result_found_for", { searchTerm }) : t("ooo_empty_title")}
-            description={t("ooo_empty_description")}
-            buttonRaw={<CreateNewOutOfOfficeEntryButton size="sm" onClick={onOpenCreateDialog} />}
-            customIcon={
-              <div className="mt-4 h-[102px]">
-                <div className="flex h-full flex-col items-center justify-center p-2 md:mt-0 md:p-0">
-                  <div className="relative">
-                    <div className="dark:bg-darkgray-50 absolute -left-3 -top-3 -z-20 h-[70px] w-[70px] -rotate-24 rounded-3xl border-2 border-[#e5e7eb] p-8 opacity-40 dark:opacity-80">
-                      <div className="w-12" />
-                    </div>
-                    <div className="dark:bg-darkgray-50 absolute -top-3 left-3 -z-10 h-[70px] w-[70px] rotate-24 rounded-3xl border-2 border-[#e5e7eb] p-8 opacity-60 dark:opacity-90">
-                      <div className="w-12" />
-                    </div>
-                    <div className="dark:bg-darkgray-50 text-inverted relative z-0 flex h-[70px] w-[70px] items-center justify-center rounded-3xl border-2 border-[#e5e7eb] bg-white">
-                      <ClockIcon size={28} className="text-black" />
-                      <div className="dark:bg-darkgray-50 absolute right-4 top-5 h-[12px] w-[12px] rotate-56 bg-white text-lg font-bold" />
-                      <span className="absolute right-4 top-3 font-sans text-sm font-extrabold text-black">
-                        z
-                      </span>
+      {isError ? (
+        <EmptyScreen
+          className="mt-6"
+          headline={t("something_went_wrong")}
+          description={t("try_again")}
+          buttonRaw={
+            <Button color="secondary" onClick={() => void refetch()}>
+              {t("retry")}
+            </Button>
+          }
+        />
+      ) : (
+        <DataTableWrapper
+          testId="ooo-list-data-table"
+          rowClassName=""
+          table={table}
+          isPending={isPending}
+          hasNextPage={hasNextPage}
+          fetchNextPage={fetchNextPage}
+          isFetching={isFetching}
+          totalRowCount={totalRowCount}
+          tableContainerRef={tableContainerRef}
+          paginationMode="infinite"
+          ToolbarLeft={
+            <>
+              <DataTableToolbar.SearchBar />
+              <DataTableFilters.FilterBar table={table} />
+            </>
+          }
+          ToolbarRight={
+            <>
+              <DataTableFilters.ClearFiltersButton />
+              <DataTableSegment.SaveButton />
+              <DataTableSegment.Select />
+            </>
+          }
+          EmptyView={
+            <EmptyScreen
+              className="mt-6"
+              headline={searchTerm ? t("no_result_found_for", { searchTerm }) : t("ooo_empty_title")}
+              description={t("ooo_empty_description")}
+              buttonRaw={<CreateNewOutOfOfficeEntryButton size="sm" onClick={onOpenCreateDialog} />}
+              customIcon={
+                <div className="mt-4 h-[102px]">
+                  <div className="flex h-full flex-col items-center justify-center p-2 md:mt-0 md:p-0">
+                    <div className="relative">
+                      <div className="dark:bg-darkgray-50 absolute -left-3 -top-3 -z-20 h-[70px] w-[70px] -rotate-24 rounded-3xl border-2 border-[#e5e7eb] p-8 opacity-40 dark:opacity-80">
+                        <div className="w-12" />
+                      </div>
+                      <div className="dark:bg-darkgray-50 absolute -top-3 left-3 -z-10 h-[70px] w-[70px] rotate-24 rounded-3xl border-2 border-[#e5e7eb] p-8 opacity-60 dark:opacity-90">
+                        <div className="w-12" />
+                      </div>
+                      <div className="dark:bg-darkgray-50 text-inverted relative z-0 flex h-[70px] w-[70px] items-center justify-center rounded-3xl border-2 border-[#e5e7eb] bg-white">
+                        <ClockIcon size={28} className="text-black" />
+                        <div className="dark:bg-darkgray-50 absolute right-4 top-5 h-[12px] w-[12px] rotate-56 bg-white text-lg font-bold" />
+                        <span className="absolute right-4 top-3 font-sans text-sm font-extrabold text-black">
+                          z
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            }
-          />
-        }
-      />
+              }
+            />
+          }
+        />
+      )}
     </>
   );
 }

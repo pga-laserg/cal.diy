@@ -1,9 +1,8 @@
 import { parse } from "accept-language-parser";
 import { lookup } from "bcp-47-match";
+import { defaultLocale, supportedLocales } from "@calcom/i18n/supportedLocales";
 import type { GetTokenParams } from "next-auth/jwt";
 import { getToken } from "next-auth/jwt";
-
-import { i18n } from "@calcom/i18n/next-i18next.config";
 
 type ReadonlyHeaders = Awaited<ReturnType<typeof import("next/headers").headers>>;
 type ReadonlyRequestCookies = Awaited<ReturnType<typeof import("next/headers").cookies>>;
@@ -29,10 +28,12 @@ export const getLocale = async (
 ): Promise<string> => {
   const cookies = req.cookies;
   const savedLocale =
-    typeof cookies.get === "function" ? cookies.get("calNewLocale")?.value : cookies.calNewLocale;
+    typeof cookies.get === "function"
+      ? cookies.get("calNewLocale")?.value
+      : (cookies as Partial<Record<string, string>>).calNewLocale;
 
   if (savedLocale) {
-    return lookup(i18n.locales, savedLocale) ?? "en";
+    return lookup([...supportedLocales], savedLocale) ?? defaultLocale;
   }
 
   const token = await getToken({
@@ -65,5 +66,5 @@ export const getLocale = async (
 
   // use fallback to closest supported locale.
   // for instance, es-419 will be transformed to es
-  return lookup(i18n.locales, requestedLocale) ?? requestedLocale;
+  return lookup([...supportedLocales], requestedLocale) ?? requestedLocale;
 };

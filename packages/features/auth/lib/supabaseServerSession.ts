@@ -30,11 +30,11 @@ type CalUserIdentity = {
 };
 
 export function invalidateSupabaseSessionIdentitiesForUser(userId: number): void {
-  for (const [cacheKey, identity] of SESSION_IDENTITY_CACHE) {
+  SESSION_IDENTITY_CACHE.forEach((identity, cacheKey) => {
     if (identity.calUserId === userId) {
       SESSION_IDENTITY_CACHE.delete(cacheKey);
     }
-  }
+  });
 }
 
 // `getUser()` validates the access token with Supabase over the network. A single
@@ -115,7 +115,7 @@ async function resolveCalUserIdentity(supabaseUser: SupabaseUser): Promise<CalUs
 
     if (id > 0) {
       const metadata = userMetadata.safeParse(rows[0]?.metadata);
-      return { id, sessionTimeout: metadata.success ? metadata.data.sessionTimeout : undefined };
+      return { id, sessionTimeout: metadata.success ? metadata.data?.sessionTimeout : undefined };
     }
   } catch {
     // A missing mapping is an authentication provisioning failure, not a reason

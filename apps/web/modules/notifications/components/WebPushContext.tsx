@@ -9,6 +9,8 @@ interface WebPushContextProps {
   permission: NotificationPermission;
   isLoading: boolean;
   isSubscribed: boolean;
+  isSupported: boolean;
+  hasSetupError: boolean;
   subscribe: () => Promise<void>;
   unsubscribe: () => Promise<void>;
 }
@@ -26,14 +28,17 @@ export function WebPushProvider({ children }: ProviderProps) {
   const [pushManager, setPushManager] = useState<PushManager | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
+  const [hasSetupError, setHasSetupError] = useState(false);
+  const isSupported =
+    typeof window !== "undefined" && "Notification" in window && "serviceWorker" in navigator;
 
-  const { mutate: addSubscription } =
+  const { mutateAsync: addSubscription } =
     trpc.viewer.loggedInViewerRouter.addNotificationsSubscription.useMutation();
-  const { mutate: removeSubscription } =
+  const { mutateAsync: removeSubscription } =
     trpc.viewer.loggedInViewerRouter.removeNotificationsSubscription.useMutation();
 
   useEffect(() => {
-    if (!("serviceWorker" in navigator)) return;
+    if (!isSupported) return;
 
     navigator.serviceWorker
       .register("/service-worker.js")
@@ -46,26 +51,33 @@ export function WebPushProvider({ children }: ProviderProps) {
       })
       .catch((error) => {
         console.error("Service Worker registration failed:", error);
+        setHasSetupError(true);
       });
-  }, []);
+  }, [isSupported]);
 
   const contextValue = useMemo(
     () => ({
       permission,
       isLoading,
       isSubscribed,
+      isSupported,
+      hasSetupError,
       subscribe: async () => {
+        if (!isSupported || !pushManager) {
+          setHasSetupError(true);
+          return;
+        }
         try {
           setIsLoading(true);
           const newPermission = await Notification.requestPermission();
           setPermission(newPermission);
 
-          if (newPermission === "granted" && pushManager) {
+          if (newPermission === "granted") {
             const subscription = await pushManager.subscribe({
               userVisibleOnly: true,
               applicationServerKey: urlB64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ""),
             });
-            addSubscription({ subscription: JSON.stringify(subscription) });
+            await addSubscription({ subscription: JSON.stringify(subscription) });
             setIsSubscribed(true);
             showToast("Notifications enabled successfully", "success");
           }
@@ -85,14 +97,17 @@ export function WebPushProvider({ children }: ProviderProps) {
         }
       },
       unsubscribe: async () => {
-        if (!pushManager) return;
+        if (!pushManager) {
+          setHasSetupError(true);
+          return;
+        }
         try {
           setIsLoading(true);
           const subscription = await pushManager.getSubscription();
           if (subscription) {
             const subscriptionJson = JSON.stringify(subscription);
             await subscription.unsubscribe();
-            removeSubscription({ subscription: subscriptionJson });
+            await removeSubscription({ subscription: subscriptionJson });
             setIsSubscribed(false);
             showToast("Notifications disabled successfully", "success");
           }
@@ -104,7 +119,16 @@ export function WebPushProvider({ children }: ProviderProps) {
         }
       },
     }),
-    [permission, isLoading, isSubscribed, pushManager, addSubscription, removeSubscription]
+    [
+      permission,
+      isLoading,
+      isSubscribed,
+      isSupported,
+      hasSetupError,
+      pushManager,
+      addSubscription,
+      removeSubscription,
+    ]
   );
 
   return <WebPushContext.Provider value={contextValue}>{children}</WebPushContext.Provider>;

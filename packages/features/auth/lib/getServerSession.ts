@@ -39,11 +39,11 @@ const CACHE = new LRUCache<string, Session>({ max: 1000 });
  * server render and /api/auth/session response reflect the saved user data.
  */
 export function invalidateCachedSessionsForUser(userId: number): void {
-  for (const [cacheKey, session] of CACHE) {
+  CACHE.forEach((session, cacheKey) => {
     if (Number(session.user.id) === userId) {
       CACHE.delete(cacheKey);
     }
-  }
+  });
 }
 
 type SessionToken = {

@@ -4,11 +4,9 @@ import { HAS_ORG_OPT_IN_FEATURES } from "@calcom/features/feature-opt-in/config"
 import type { TeamFeatures } from "@calcom/features/flags/config";
 import { IS_CALCOM, WEBAPP_URL } from "@calcom/lib/constants";
 import { getPlaceholderAvatar } from "@calcom/lib/defaultAvatarImage";
-import { getUserAvatarUrl } from "@calcom/lib/getAvatarUrl";
 import { useIsStandalone } from "@calcom/lib/hooks/useIsStandalone";
 import { useLocale } from "@calcom/lib/hooks/useLocale";
-import { IdentityProvider, UserPermissionRole } from "@calcom/prisma/enums";
-import { trpc } from "@calcom/trpc/react";
+import { UserPermissionRole } from "@calcom/prisma/enums";
 import classNames from "@calcom/ui/classNames";
 import { Badge } from "@calcom/ui/components/badge";
 import { Button } from "@calcom/ui/components/button";
@@ -25,6 +23,7 @@ import { usePathname, useRouter } from "next/navigation";
 import type { ComponentProps } from "react";
 import React, { useEffect, useMemo, useState } from "react";
 import Shell from "~/shell/Shell";
+import { SettingsNavigationMonitor, SettingsPageReadyMarker } from "~/settings/SettingsRouteState";
 
 const getTabs = (
   orgBranding: {
@@ -277,7 +276,7 @@ const useTabs = ({
   permissions?: SettingsPermissions;
 }) => {
   const session = useSession();
-  const { data: user } = trpc.viewer.me.get.useQuery({ includePasswordAdded: true });
+  const user = session.data?.user;
   const orgBranding = null as { id?: number; slug?: string; name?: string; logoUrl?: string | null } | null;
   const isAdmin = session.data?.user.role === UserPermissionRole.ADMIN;
 
@@ -288,7 +287,7 @@ const useTabs = ({
           ...tab,
           name: user?.name || "my_account",
           icon: undefined,
-          avatar: getUserAvatarUrl(user),
+          avatar: user?.image || undefined,
         };
       } else if (tab.href === "/settings/organizations") {
         const newArray = (tab?.children ?? []).filter(
@@ -346,16 +345,6 @@ const useTabs = ({
           name: orgBranding?.name || "organization",
           avatar: getPlaceholderAvatar(orgBranding?.logoUrl, orgBranding?.name),
         };
-      } else if (
-        tab.href === "/settings/security" &&
-        user?.identityProvider === IdentityProvider.GOOGLE &&
-        !user?.twoFactorEnabled &&
-        !user?.passwordAdded
-      ) {
-        const filtered = tab?.children?.filter(
-          (childTab) => childTab.href !== "/settings/security/two-factor-auth"
-        );
-        return { ...tab, children: filtered };
       } else if (tab.href === "/settings/developer") {
         const filtered = tab?.children?.filter(
           (childTab) => permissions?.canUpdateOrganization || childTab.name !== "api_docs"
@@ -561,8 +550,10 @@ function SettingsLayoutAppDirClient({ children, teamFeatures, permissions, ...re
         <div
           className={classNames("mx-auto max-w-full justify-center lg:max-w-3xl", rest.containerClassName)}>
           <ErrorBoundary>{children}</ErrorBoundary>
+          <SettingsPageReadyMarker />
         </div>
       </div>
+      <SettingsNavigationMonitor />
     </Shell>
   );
 }
