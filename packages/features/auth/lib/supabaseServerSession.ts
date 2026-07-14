@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import process from "node:process";
 import prisma from "@calcom/prisma";
+import { userMetadata } from "@calcom/prisma/zod-utils";
 import { createServerClient } from "@supabase/ssr";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { LRUCache } from "lru-cache";
@@ -22,6 +23,19 @@ type SupabaseConfig = {
   publishableKey: string;
   url: string;
 };
+
+type CalUserIdentity = {
+  id: number;
+  sessionTimeout?: number;
+};
+
+export function invalidateSupabaseSessionIdentitiesForUser(userId: number): void {
+  for (const [cacheKey, identity] of SESSION_IDENTITY_CACHE) {
+    if (identity.calUserId === userId) {
+      SESSION_IDENTITY_CACHE.delete(cacheKey);
+    }
+  }
+}
 
 // `getUser()` validates the access token with Supabase over the network. A single
 // dashboard render can invoke it through several tRPC procedures, so cache the
@@ -89,10 +103,10 @@ function getSessionCacheKey(cookies: Record<string, string | undefined>): string
   return createHash("sha256").update(JSON.stringify(authCookieEntries)).digest("hex");
 }
 
-async function resolveCalUserId(supabaseUser: SupabaseUser): Promise<number | null> {
+async function resolveCalUserIdentity(supabaseUser: SupabaseUser): Promise<CalUserIdentity | null> {
   try {
-    const rows = await prisma.$queryRaw<Array<{ id: bigint | number }>>`
-      select id
+    const rows = await prisma.$queryRaw<Array<{ id: bigint | number; metadata: unknown }>>`
+      select id, metadata
       from public.users
       where auth_user_id = cast(${supabaseUser.id} as uuid)
       limit 1
@@ -100,7 +114,8 @@ async function resolveCalUserId(supabaseUser: SupabaseUser): Promise<number | nu
     const id = Number(rows[0]?.id);
 
     if (id > 0) {
-      return id;
+      const metadata = userMetadata.safeParse(rows[0]?.metadata);
+      return { id, sessionTimeout: metadata.success ? metadata.data.sessionTimeout : undefined };
     }
   } catch {
     // A missing mapping is an authentication provisioning failure, not a reason
@@ -146,9 +161,15 @@ export async function getSupabaseSessionIdentity(req: RequestLike): Promise<Supa
     return null;
   }
 
-  const calUserId = await resolveCalUserId(supabaseUser);
+  const calUser = await resolveCalUserIdentity(supabaseUser);
 
-  if (!calUserId) {
+  if (!calUser) {
+    return null;
+  }
+
+  const sessionTimeoutMs = calUser.sessionTimeout ? calUser.sessionTimeout * 60 * 1000 : null;
+  const signedInAt = supabaseUser.last_sign_in_at ? new Date(supabaseUser.last_sign_in_at).getTime() : NaN;
+  if (sessionTimeoutMs && Number.isFinite(signedInAt) && Date.now() >= signedInAt + sessionTimeoutMs) {
     return null;
   }
 
@@ -160,7 +181,7 @@ export async function getSupabaseSessionIdentity(req: RequestLike): Promise<Supa
 
   const identity = {
     cacheKey: `supabase:${supabaseUser.id}:${sessionData.session?.expires_at ?? "session"}`,
-    calUserId,
+    calUserId: calUser.id,
     email: supabaseUser.email,
     expires: expiresAt,
     supabaseUserId: supabaseUser.id,
