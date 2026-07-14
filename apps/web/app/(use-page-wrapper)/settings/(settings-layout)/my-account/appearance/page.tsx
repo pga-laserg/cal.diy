@@ -31,12 +31,16 @@ const Page = async () => {
     redirect(redirectUrl);
   }
 
-  const [meCaller, hasTeamPlan] = await Promise.all([
-    createRouterCaller(meRouter),
-    getCachedHasTeamPlan(userId),
+  const meCaller = await createRouterCaller(meRouter);
+  const [user, hasTeamPlan] = await Promise.all([
+    meCaller.get(),
+    Promise.race([
+      getCachedHasTeamPlan(userId),
+      new Promise<{ hasTeamPlan: false }>((resolve) => {
+        setTimeout(() => resolve({ hasTeamPlan: false }), 1500);
+      }),
+    ]),
   ]);
-
-  const user = await meCaller.get();
 
   if (!user) {
     redirect(redirectUrl);
